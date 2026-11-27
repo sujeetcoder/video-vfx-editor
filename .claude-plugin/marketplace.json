@@ -1,7 +1,7 @@
 {
   "name": "video-vfx-editor",
   "description": "Local professional video editing and clipping skill: cuts, Hindi captions, chroma key, person matte, 9:16 reframe, clip finding, style learning, motion graphics and measured quality gates. No API keys, no cloud render.",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "owner": {
     "name": "sujeetcoder"
   },
@@ -12,7 +12,7 @@
     {
       "name": "video-vfx-editor",
       "source": "./",
-      "version": "0.1.0",
+      "version": "0.1.3",
       "description": "Professional local video editing AND clipping with measured gates. FFmpeg + Python + Node, zero paid APIs.",
       "author": {
         "name": "sujeetcoder"

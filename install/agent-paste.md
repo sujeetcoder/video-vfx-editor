@@ -8,9 +8,9 @@ It is the complete operating contract; the repository adds the scripts.
 name: video-vfx-editor
 description: Professional video editing AND clipping on the local machine with FFmpeg, Python and Node. Use when the user wants to edit video, cut a talking-head or podcast, burn Hindi subtitles or captions, remove silences and filler words, chroma key a green screen, cut a person out without green screen, reframe 16:9 to 9:16 for shorts, reels or TikTok, find highlight clips from a long video, learn an editing style from reference links, add motion graphics or sound effects, or check a render against platform specs. No API keys, no cloud render, no watermarks.
 license: MIT (code) + CC-BY-4.0 (prose)
-compatibility: Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI, Freebuff. Requires Python 3.11+, FFmpeg with libass, Node 22 (20 acceptable).
+compatibility: Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI, Freebuff. Requires Python 3.11-3.13 (3.12.16 auto-provisioned user-locally), FFmpeg with libass, Node 22 (20 acceptable).
 metadata:
-  version: 0.1.0
+  version: 0.1.3
   runtime: python+ffmpeg+node
   models: 100k-context
   install: INSTALL.md
@@ -27,7 +27,9 @@ decisions, Node the motion graphics. There are no paid APIs and no cloud render.
 ## 0. Before anything
 
 1. `python install/doctor.py --json` — if FFmpeg/libass is missing, follow the
-   `fix` string in the error; do not improvise a different stack.
+   `fix` string in the error; do not improvise a different stack. If Python is
+   outside 3.11–3.13, run `python install/ensure.py --install --yes` once and use
+   the interpreter it prints for every script.
 2. Work inside the user's project folder. Every script writes only under `edit/`.
 3. Never claim a gate passed without running `scripts/check.py`.
 

@@ -15,7 +15,7 @@ from pathlib import Path
 from _contract import log
 from _paths import edit_dir, local_bin, read_json, repo_root, which, write_json
 
-CAPS_VERSION = 3
+CAPS_VERSION = 4
 
 REQUIRED_FILTERS = ("subtitles", "drawtext", "zscale", "loudnorm", "chromakey", "scdet")
 NICE_FILTERS = ("despill", "alphaextract", "sidechaincompress", "afftdn", "arnndn", "freezedetect")
@@ -202,12 +202,14 @@ def probe_all(root=None) -> dict:
     ffprobe = os.environ.get("VFE_FFPROBE") or which("ffprobe") or local_bin("ffprobe")
     filters = _ffmpeg_filters(ffmpeg)
     encoders = _ffmpeg_encoders(ffmpeg)
-    node = which("node")
-    npm = which("npm")
+    node = which("node") or _local_tool("node")
+    npm = which("npm") or _local_tool("npm")
+    yt_dlp = which("yt-dlp")
     node_version = ""
     if node:
         _, out = _run([node, "-v"])
         node_version = out.strip().lstrip("v")
+    packages = _python_packages()
     python_ok = sys.version_info >= (3, 11)
     return {
         "caps_version": CAPS_VERSION,
@@ -232,13 +234,24 @@ def probe_all(root=None) -> dict:
         "npm": {"path": npm, "present": bool(npm)},
         "npx": {"path": which("npx"), "present": bool(which("npx"))},
         "chrome": {"path": _chrome()},
-        "yt_dlp": {"path": which("yt-dlp"), "present": bool(which("yt-dlp"))},
-        "packages": _python_packages(),
+        "yt_dlp": {"path": yt_dlp, "present": bool(yt_dlp or packages.get("yt_dlp"))},
+        "packages": packages,
         "gpu": _gpu(),
         "fonts": _fonts(root),
         "models": _models(root),
         "whisper_backends": _whisper_backends(),
     }
+
+
+def _local_tool(name: str):
+    """User-local portable Node under ~/.vfe/node (installed by ensure.py)."""
+    candidates = [Path.home() / ".vfe" / "node" / name,
+                  Path.home() / ".vfe" / "node" / (name + ".cmd"),
+                  Path.home() / ".vfe" / "node" / "bin" / name]
+    for p in candidates:
+        if p.is_file():
+            return str(p)
+    return None
 
 
 def _major(version: str) -> int:

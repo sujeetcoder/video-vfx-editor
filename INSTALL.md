@@ -13,9 +13,12 @@ python install/doctor.py --json
 Both print one JSON object. `doctor.py` gives a `checks` list; every failed or
 warned check has a `fix`. Report the table to the user, then continue.
 
-Required: Python **3.11+**, FFmpeg with `libass` + `ffprobe`, Node **20+**
-(22 preferred). Optional: Chrome/Edge (motion graphics), `yt-dlp` (URL ingest),
-OpenCV/rembg (matte), faster-whisper (captions).
+Required: Python **3.11–3.13** (CPython **3.12.16** is provisioned for you when
+the default interpreter is outside that range), FFmpeg with `libass` + `ffprobe`,
+Node **20+** (22 preferred). Optional: Chrome/Edge (motion graphics), `yt-dlp`
+(URL ingest). The installer also adds faster-whisper (captions), rembg +
+onnxruntime (person matte) and puppeteer (motion). Everything it adds is
+**user-local: no admin, no sudo, no PATH edits**.
 
 ## 2. Install only what is missing
 
@@ -31,12 +34,36 @@ Rules this tool follows (and you must too):
 - idempotent: running it three times changes nothing
 - on Linux, if `apt-get` is needed, print the command for the user to run
 
+What `--install` provisions, and where (all under your home directory):
+
+| Component | Location | How |
+|---|---|---|
+| CPython 3.12.16 + venv | `~/.vfe/python`, `~/.vfe/venv` | `uv python install 3.12.16` |
+| FFmpeg 9 (libass, zscale) | `~/.vfe/bin` | gyan.dev build, **SHA-256 verified** |
+| Node 22 LTS | `~/.vfe/node` | nodejs.org zip (no MSI, no admin) |
+| pip packages | inside `~/.vfe/venv` | numpy, OpenCV, Pillow, yt-dlp, faster-whisper, rembg, onnxruntime |
+| puppeteer + Chrome | global npm, `~/.cache/puppeteer` | `npm install -g puppeteer` |
+| OFL fonts | `assets/fonts` or `~/.vfe/fonts` | Google Fonts |
+
+If a venv was provisioned, run the skill scripts with **its** interpreter.
+`ensure.py` prints the exact path:
+
+```text
+Windows:  %USERPROFILE%\.vfe\venv\Scripts\python.exe
+macOS/Linux:  ~/.vfe/venv/bin/python
+```
+
+The bootstrap only triggers for unsupported interpreters (for example Python
+3.15, which has no wheels for numpy/onnxruntime/ctranslate2). On Python
+3.11–3.13 the tool uses the interpreter you already have and installs packages
+with `--user`.
+
 OS fallbacks when a package manager is unavailable:
 
 | Tool | Windows | macOS | Linux |
 |---|---|---|---|
-| FFmpeg | `winget install Gyan.FFmpeg` | `brew install ffmpeg` (full build for libass) | `sudo apt install ffmpeg` (user runs it) |
-| Node | `winget install OpenJS.NodeJS.LTS` | `brew install node@22` | `nvm install 22` |
+| FFmpeg | automatic portable build in `~/.vfe/bin` (SHA-256 verified); or `winget install Gyan.FFmpeg` | `brew install ffmpeg` (full build for libass) | `sudo apt install ffmpeg` (user runs it) |
+| Node | automatic portable Node 22 in `~/.vfe/node`; or `winget install OpenJS.NodeJS.LTS` | `brew install node@22` | `nvm install 22` |
 | yt-dlp | `python -m pip install --user -U yt-dlp` | same | same |
 
 macOS libass: `brew install ffmpeg-full` then
@@ -98,14 +125,16 @@ python scripts/probe.py --help
 python scripts/forge.py init "test.mp4" --job edit --json
 ```
 
-Acceptance: `doctor` exits 0 (or lists exact FAIL fixes), `scripts/*.py --help`
-all work, and `edit/state.json` is created. Then start with `SKILL.md`.
+Acceptance: `doctor` exits 0 (or lists exact FAIL fixes) with Python
+`3.11–3.13` (3.12.16 when provisioned), `scripts/*.py --help` all work, and
+`edit/state.json` is created. Then start with `SKILL.md`.
 
 ## 7. Locked decisions (do not change without asking)
 
 1. Repo/skill name `video-vfx-editor`; folder name identical.
 2. 100k+ context models only — no small-model or "safe" mode.
-3. Python 3.11+ **and** FFmpeg **and** Node 22 are all required.
+3. Python 3.11–3.13 (3.12.16 when the installer provisions it), FFmpeg and Node 22
+   are all required.
 4. `--device auto`: CUDA → MPS → CPU, one CPU retry on OOM.
 5. Check first, install only what is missing, never reinstall, ask for system installs.
 6. Captions default Hindi (Devanagari); Hinglish and English optional.
@@ -115,5 +144,13 @@ all work, and `edit/state.json` is created. Then start with `SKILL.md`.
 
 ## 8. Uninstall
 
-Delete the linked folder (`<skills dir>/video-vfx-editor`). Nothing was
-installed system-wide by this tool except what you approved in step 2.
+Delete the linked folder (`<skills dir>/video-vfx-editor`). To reclaim disk,
+the user-local runtime can go too — nothing here was installed system-wide and
+the installer never runs sudo:
+
+```text
+~/.vfe            CPython 3.12.16 + venv, portable FFmpeg, Node, fonts
+~/.rembg          u2net matte model
+~/.cache/huggingface   whisper models
+~/.cache/puppeteer     Chrome for motion graphics
+```

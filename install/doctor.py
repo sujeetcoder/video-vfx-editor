@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -17,11 +19,11 @@ from _caps import capabilities, fonts_dir, resolve_device  # noqa: E402
 from _contract import add_common, stage  # noqa: E402
 
 FIX = {
-    "ffmpeg": "Windows: winget install Gyan.FFmpeg | macOS: brew install ffmpeg | Linux: sudo apt install ffmpeg",
-    "libass": "macOS: brew install ffmpeg-full && export PATH=\"$(brew --prefix ffmpeg-full)/bin:$PATH\" | Windows: use a Gyan full build",
+    "ffmpeg": "run: python install/ensure.py --install --yes (Windows: portable FFmpeg into ~/.vfe/bin, SHA-256 verified) | macOS: brew install ffmpeg | Linux: sudo apt install ffmpeg",
+    "libass": "macOS: brew install ffmpeg-full && export PATH=\"$(brew --prefix ffmpeg-full)/bin:$PATH\" | Windows: python install/ensure.py --install --yes",
     "ffprobe": "ships with FFmpeg; install a full build",
-    "python": "install Python 3.11+ from python.org (Windows: tick 'Add to PATH')",
-    "node": "Windows: winget install OpenJS.NodeJS.LTS | macOS: brew install node@22 | no-admin: nvm install 22",
+    "python": "run: python install/ensure.py --install --yes (provisions CPython 3.12.16 user-locally, no admin)",
+    "node": "run: python install/ensure.py --install --yes (Windows: portable Node 22) | macOS: brew install node@22 | no-admin: nvm install 22",
     "npm": "npm ships with Node; reinstall Node",
     "chrome": "install Chrome/Edge, or npm i -g puppeteer (motion graphics only)",
     "yt_dlp": "python -m pip install --user -U yt-dlp",
@@ -50,7 +52,8 @@ def build_report(caps: dict) -> list:
     add("ffmpeg:zscale", ff["has_zscale"], "zscale filter", "present", FIX["zscale"], required=False)
     add("ffprobe", caps["ffprobe"]["present"], caps["ffprobe"]["path"] or "missing", "on PATH", FIX["ffprobe"])
     py = caps["python"]
-    add("python", py["ok"] and sys.version_info >= (3, 11), py["version"], ">= 3.11", FIX["python"])
+    supported = (3, 11) <= sys.version_info[:2] < (3, 14)
+    add("python", py["ok"] and supported, py["version"], "3.11-3.13 (3.12.16 pinned)", FIX["python"])
     node = caps["node"]
     add("node", node["ok"], node["version"] or "missing", ">= 20 (22 preferred)", FIX["node"], required=False)
     add("npm", caps["npm"]["present"], caps["npm"]["path"] or "missing", "on PATH", FIX["npm"], required=False)
@@ -69,16 +72,28 @@ def build_report(caps: dict) -> list:
         "cuda" if gpu["cuda"] else ("mps" if gpu["mps"] else "cpu only"),
         "optional acceleration", FIX["gpu"], required=False)
     pkgs = caps["packages"]
-    for pkg, target in (("numpy", "numpy"), ("cv2", "opencv-python-headless"), ("PIL", "pillow")):
+    for pkg, target in (("numpy", "numpy"), ("cv2", "opencv-python-headless"), ("PIL", "pillow"),
+                        ("faster_whisper", "faster-whisper"), ("rembg", "rembg"), ("onnxruntime", "onnxruntime")):
         add(f"py:{pkg}", bool(pkgs.get(pkg)), "installed" if pkgs.get(pkg) else "missing", target,
             f"python -m pip install --user {target}", required=False)
     return checks
+
+
+def _provisioned_python() -> Path:
+    name = "Scripts/python.exe" if sys.platform.startswith("win") else "bin/python"
+    return Path.home() / ".vfe" / "venv" / name
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Report video-vfx-editor capabilities and fixes")
     add_common(parser)
     args = parser.parse_args(argv)
+    # Report the runtime the installer provisioned, not the OS default.
+    supported = (3, 11) <= sys.version_info[:2] < (3, 14)
+    venv = _provisioned_python()
+    if not supported and venv.is_file() and os.environ.get("VFE_BOOTSTRAPPED") != "1":
+        env = dict(os.environ, VFE_BOOTSTRAPPED="1")
+        return subprocess.run([str(venv), str(Path(__file__).resolve()), *sys.argv[1:]], env=env).returncode
     with stage("doctor", args) as run:
         caps = capabilities(ROOT, refresh=args.refresh)
         checks = build_report(caps)
@@ -90,6 +105,7 @@ def main(argv=None) -> int:
             run.next_cmd = "python install/ensure.py --check --json"
         else:
             print(f"video-vfx-editor doctor — {caps['platform']} / python {caps['python']['version']} / device {run.device}")
+            print(f"interpreter: {caps['python']['path']}")
             print("-" * 78)
             for c in checks:
                 mark = "PASS" if c["status"] == "pass" else ("FAIL" if c["status"] == "fail" else "WARN")

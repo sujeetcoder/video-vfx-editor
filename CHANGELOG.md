@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.1.3 — 2026-11-27
+
+Install-flow pass on a **cleaned machine**: every user-level artefact from the
+0.1.2 run was removed (Python 3.12.10, portable FFmpeg, whisper/rembg/puppeteer
+caches, global npm puppeteer, the PATH entries and PEP 514 registrations), then
+the installer was run from scratch the way a new user would.
+
+### Installer
+
+- **CPython 3.12.16, user-local** — `ensure.py` provisions it with uv into
+  `~/.vfe` when the default interpreter is outside 3.11–3.13, then re-runs
+  itself inside that venv. No admin, no sudo, no PATH edits. This replaces the
+  manual 3.12.10 install.
+- **Windows FFmpeg without admin** — portable gyan.dev essentials build,
+  downloaded over HTTPS, **SHA-256 verified**, unpacked to `~/.vfe/bin`.
+- **Portable Node 22 LTS** in `~/.vfe/node` when Node is missing or too old;
+  `_caps.py` and `doctor.py` find it without PATH changes.
+- **The requirements it was missing are now installed**: `rembg` + `onnxruntime`
+  (matte) and global `puppeteer` (motion) come with `--install`; `--models`
+  pre-downloads the whisper model named by `VFE_WHISPER_MODEL`.
+- **`ensure.py` and `doctor.py` delegate** to the provisioned venv when the
+  default Python is unsupported, so both report the runtime scripts actually run
+  on.
+- **OpenCV pinned `<5`**: 5.x removed `cv2.CascadeClassifier`, used by `probe.py`
+  and `reframe.py`; a fresh install broke face detection until pinned.
+
+### Fixed by running the clean install
+
+- The planner trusted `edit/caps.json` and **skipped FFmpeg entirely** after the
+  runtime had been deleted; `--install` now always re-probes.
+- **npm ≥ 12 skips postinstall scripts**, so `npm i -g puppeteer` installed the
+  package without Chrome. The installer passes `--allow-scripts=puppeteer` and
+  falls back to the package's `install.mjs`.
+- The FFmpeg checksum file was rejected by the “4 KB minimum” download guard.
+- `yt-dlp` was reported missing because only its console script was probed;
+  module presence now counts.
+
+### Verified end to end after the cleanup
+
+| Step | Result |
+|---|---|
+| fresh `ensure.py --install --yes` | CPython 3.12.16 venv, FFmpeg 9.1, 7 pip packages, puppeteer 25 + Chrome 158, fonts → `preflight 0 missing` |
+| pipeline (`forge run`, defaults) | ingest → probe → intake(reel, hi) → plan → cut → asr → caption(burn) → audio → export → check in **210 s** |
+| ASR | faster-whisper `small`, CPU int8, **50 Devanagari words** from the real audio |
+| captions | 19 lines burned |
+| gates | **8/8 pass**: 1080×1920, 30 fps, **−14.5 LUFS**, **−1.7 dBTP**, 0 black, 0 freeze |
+| matte | rembg u2net, 45 masks @480 px, 87 s, white + black previews |
+| motion | `kinetic-hook` via puppeteer, energy 2.03, no text overflow |
+| tests | 59 passed, pyflakes clean |
+
+The `small` model keeps only 50 of the words the earlier `medium` run caught
+(129); `VFE_WHISPER_MODEL=medium` remains the accurate choice for Hindi.
+
 ## 0.1.2 — 2026-11-27
 
 Real-media pass: a Hindi talking-head interview (Wikimedia Commons, 53.8 s,

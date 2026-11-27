@@ -15,6 +15,11 @@ python install/setup.py --agent all --install --yes
 python install/doctor.py
 ```
 
+On a machine whose default Python is outside 3.11–3.13 (or without FFmpeg/Node),
+that command provisions everything user-locally: CPython **3.12.16** via uv, a
+portable SHA-256-verified FFmpeg, portable Node 22, faster-whisper, rembg and
+puppeteer. No admin rights, no PATH edits.
+
 Then tell your agent:
 
 > Edit ./raw/podcast.mp4 — Hindi captions, 9:16, tight cut.
@@ -37,7 +42,8 @@ The agent asks 5–8 pre-filled questions and runs the pipeline.
 
 ## Requirements
 
-Python 3.11+, FFmpeg with libass, Node 20+ (22 preferred). GPU optional:
+Python 3.11–3.13 (CPython 3.12.16 is provisioned user-locally when yours is
+older/newer), FFmpeg with libass, Node 20+ (22 preferred). GPU optional:
 CUDA and Apple MPS are used when present, CPU otherwise.
 
 ## Layout

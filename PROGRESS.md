@@ -1,6 +1,6 @@
 # PROGRESS
 
-Last update: 2026-11-27 (v0.1.2, verified on Windows 11 with portable FFmpeg 9.1)
+Last update: 2026-11-27 (v0.1.3, clean-machine install re-verified on Windows 11)
 
 ## Real-media run (this machine)
 
@@ -35,15 +35,38 @@ resolution mismatch; blank matte previews; rembg 1 GB default model; motion
 renderer syntax error (nested template literals); global puppeteer invisible to
 ESM/nvm shims; forged pipeline skipped caption burn and quick detect.
 
+## Clean-machine install (v0.1.3)
+
+Removed every user-level artefact from the 0.1.2 run, then installed as a new
+user with the machine's default Python 3.15:
+
+| Step | Measured |
+|---|---|
+| `ensure.py --install --yes` | bootstraps CPython **3.12.16** + venv via uv, portable FFmpeg 9.1 (SHA-256 verified), 7 pip packages, puppeteer 25 + Chrome 158, fonts; re-run → `0 missing` |
+| `python install/doctor.py` (default 3.15) | delegates to the venv; `PASS python 3.12.16`, `PASS ffmpeg`, `PASS py:cv2` … |
+| `forge run` (defaults) | ingest → probe → intake(reel, hi) → plan → cut → asr → caption(burn) → audio → export → check, **210 s** |
+| ASR | faster-whisper `small`, CPU int8, **50 Devanagari words** (medium caught 129 earlier) |
+| gates | **8/8 pass**: 1080×1920, 30 fps, **−14.5 LUFS**, **−1.7 dBTP**, 0 black, 0 freeze |
+| matte | rembg u2net, 45 masks @480 px, 87 s, white/black previews |
+| motion | `kinetic-hook`, energy 2.03, 16-char text, no overflow |
+| tests | 59 passed, pyflakes clean |
+
+Install bugs found only on a clean machine (all fixed): stale `caps.json` skipped
+FFmpeg, npm 12 skipped puppeteer's postinstall so Chrome never downloaded, the
+checksum file tripped the download size floor, `yt-dlp` was probed only as a
+executable, and OpenCV 5 removed `cv2.CascadeClassifier`.
+
 ## Environment
 
-- Python 3.12.10 at `~/.vfe/py312` (user-local; Python 3.15 has no wheels for
-  numpy/onnxruntime/ctranslate2).
-- `~/.vfe/bin` portable FFmpeg 9.1; `~/.vfe/fonts` OFL fonts.
-- faster-whisper models in `~/.cache/huggingface` (small 0.5 GB, medium 1.5 GB);
-  rembg u2net in `~/.rembg/models`; puppeteer Chrome in `~/.cache/puppeteer`.
-- Windows Smart App Control blocks some unsigned builds (uv-managed Python,
-  PyAV 18 wheels); the signed python.org installer works.
+- CPython **3.12.16** + venv at `~/.vfe/venv`, provisioned user-locally by
+  `install/ensure.py` through uv. Python 3.15 is rejected: numpy, onnxruntime and
+  ctranslate2 have no wheels for it.
+- `~/.vfe/bin` portable FFmpeg 9.1 (SHA-256 verified download); `~/.vfe/fonts`
+  OFL fonts; `~/.vfe/node` portable Node 22 when the machine has none.
+- faster-whisper models in `~/.cache/huggingface`; rembg u2net in `~/.rembg`;
+  puppeteer Chrome in `~/.cache/puppeteer`.
+- Windows Smart App Control can block unsigned builds; downloads are HTTPS-only
+  and checksum-verified when the vendor publishes one (FFmpeg does).
 
 ## Not verified
 
