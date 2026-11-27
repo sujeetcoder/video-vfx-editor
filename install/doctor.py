@@ -59,7 +59,8 @@ def build_report(caps: dict) -> list:
     add("npm", caps["npm"]["present"], caps["npm"]["path"] or "missing", "on PATH", FIX["npm"], required=False)
     add("chrome", bool(caps["chrome"]["path"]), caps["chrome"]["path"] or "missing",
         "Chrome/Edge for motion", FIX["chrome"], required=False)
-    add("yt-dlp", caps["yt_dlp"]["present"], caps["yt_dlp"]["path"] or "missing",
+    ytdlp = caps["yt_dlp"]
+    add("yt-dlp", ytdlp["present"], ytdlp["path"] or ("python module" if ytdlp["present"] else "missing"),
         "for URL ingest", FIX["yt_dlp"], required=False)
     fonts = caps["fonts"]
     add("fonts:devanagari", fonts["devanagari"], fonts["count"], "Devanagari font installed", FIX["fonts"], required=False)
