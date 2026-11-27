@@ -15,7 +15,7 @@ from pathlib import Path
 from _contract import log
 from _paths import edit_dir, local_bin, read_json, repo_root, which, write_json
 
-CAPS_VERSION = 4
+CAPS_VERSION = 5
 
 REQUIRED_FILTERS = ("subtitles", "drawtext", "zscale", "loudnorm", "chromakey", "scdet")
 NICE_FILTERS = ("despill", "alphaextract", "sidechaincompress", "afftdn", "arnndn", "freezedetect")
