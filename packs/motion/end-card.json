@@ -1,0 +1,18 @@
+{
+  "id": "end-card",
+  "description": "End card with handle + CTA",
+  "duration": 3.0,
+  "text_limit": 40,
+  "animation": "fadeUp",
+  "weight": "bold",
+  "color": "#FFFFFF",
+  "accent": "#0B0B0B",
+  "safe_zone": {
+    "top": 0.08,
+    "bottom": 0.18,
+    "left": 0.08,
+    "right": 0.08
+  },
+  "ease": "out",
+  "entrance_ms": 260
+}

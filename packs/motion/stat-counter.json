@@ -1,0 +1,18 @@
+{
+  "id": "stat-counter",
+  "description": "Number counting up with a label",
+  "duration": 2.6,
+  "text_limit": 24,
+  "animation": "count",
+  "weight": "bold",
+  "color": "#7CFF6B",
+  "accent": "#0B0B0B",
+  "safe_zone": {
+    "top": 0.08,
+    "bottom": 0.18,
+    "left": 0.08,
+    "right": 0.08
+  },
+  "ease": "out",
+  "entrance_ms": 260
+}

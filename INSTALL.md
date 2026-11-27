@@ -1,0 +1,119 @@
+# INSTALL — instructions for an AI agent
+
+You are installing **video-vfx-editor** for the user. Do these steps in order.
+Do not skip the check step, and do not install anything that already exists.
+
+## 1. Check the machine (read-only, safe)
+
+```bash
+python install/ensure.py --check --json
+python install/doctor.py --json
+```
+
+Both print one JSON object. `doctor.py` gives a `checks` list; every failed or
+warned check has a `fix`. Report the table to the user, then continue.
+
+Required: Python **3.11+**, FFmpeg with `libass` + `ffprobe`, Node **20+**
+(22 preferred). Optional: Chrome/Edge (motion graphics), `yt-dlp` (URL ingest),
+OpenCV/rembg (matte), faster-whisper (captions).
+
+## 2. Install only what is missing
+
+```bash
+python install/ensure.py --install --yes     # non-interactive
+python install/ensure.py --install           # asks before system-wide installs
+```
+
+Rules this tool follows (and you must too):
+
+- user-local first: `pip --user`, `~/.local/bin`, nvm/fnm
+- ask before anything system-wide; **never** run sudo/doas/pkexec yourself
+- idempotent: running it three times changes nothing
+- on Linux, if `apt-get` is needed, print the command for the user to run
+
+OS fallbacks when a package manager is unavailable:
+
+| Tool | Windows | macOS | Linux |
+|---|---|---|---|
+| FFmpeg | `winget install Gyan.FFmpeg` | `brew install ffmpeg` (full build for libass) | `sudo apt install ffmpeg` (user runs it) |
+| Node | `winget install OpenJS.NodeJS.LTS` | `brew install node@22` | `nvm install 22` |
+| yt-dlp | `python -m pip install --user -U yt-dlp` | same | same |
+
+macOS libass: `brew install ffmpeg-full` then
+`export PATH="$(brew --prefix ffmpeg-full)/bin:$PATH"`.
+
+No package manager, or a locked-down machine? A portable FFmpeg/ffprobe placed in
+`~/.vfe/bin/` is detected automatically (no PATH edit, no admin rights): unzip a
+static build there and run `python install/doctor.py` again.
+
+## 3. Fonts (Devanagari is the default caption language)
+
+```bash
+python install/ensure.py --install --fonts
+```
+
+Downloads OFL Noto Sans Devanagari + Inter into `assets/fonts/` (or
+`~/.vfe/fonts/`). If the download is blocked, install any Devanagari font
+system-wide (Windows: Nirmala UI ships with the OS) and note it in the report.
+
+## 4. Link the skill into the agent(s)
+
+```bash
+python install/setup.py --agent all            # project scope
+python install/setup.py --agent all --global   # home scope
+python install/setup.py --list                 # where each agent looks
+```
+
+| Agent | Project path | Global path |
+|---|---|---|
+| Claude Code | `.claude/skills/` | `~/.claude/skills/` |
+| Codex | `.agents/skills/` | `~/.agents/skills/` |
+| OpenCode | `.opencode/skills/`, `.claude/skills/`, `.agents/skills/` | `~/.config/opencode/skills/` |
+| Cursor | `.agents/skills/`, `.cursor/skills/` | `~/.cursor/skills/` |
+| Gemini CLI | `.agents/skills/` | `~/.gemini/skills/` |
+| Copilot CLI | `.agents/skills/` | `~/.copilot/skills/` |
+
+Windows without Developer Mode cannot symlink; `setup.py` copies instead and
+says so. The folder name must be exactly `video-vfx-editor`.
+
+## 5. The six install routes
+
+| Route | Command | Tested here |
+|---|---|---|
+| A. Agent reads this file | "Install github.com/sujeetcoder/video-vfx-editor, read INSTALL.md and follow it" | yes (this file) |
+| B. Paste/upload | copy `install/agent-paste.md` into a skills UI (Freebuff) | yes (file generated) |
+| C. skills CLI | `npx skills add sujeetcoder/video-vfx-editor -a claude-code -a codex -a opencode -g` | not run (needs the published repo) |
+| D. Plugin marketplace | `/plugin marketplace add sujeetcoder/video-vfx-editor` then `/plugin install video-vfx-editor@video-vfx-editor` | not run |
+| E. Manual | `git clone` then `python install/setup.py --agent all` | yes |
+| F. OpenCode | `npx skills add ... -a opencode -g`, or copy to `.opencode/skills/video-vfx-editor` | not run |
+
+Mark honestly in your report which routes you exercised. Do not claim "works"
+for a route you did not run.
+
+## 6. Verify before the first job
+
+```bash
+python install/doctor.py --json
+python scripts/probe.py --help
+python scripts/forge.py init "test.mp4" --job edit --json
+```
+
+Acceptance: `doctor` exits 0 (or lists exact FAIL fixes), `scripts/*.py --help`
+all work, and `edit/state.json` is created. Then start with `SKILL.md`.
+
+## 7. Locked decisions (do not change without asking)
+
+1. Repo/skill name `video-vfx-editor`; folder name identical.
+2. 100k+ context models only — no small-model or "safe" mode.
+3. Python 3.11+ **and** FFmpeg **and** Node 22 are all required.
+4. `--device auto`: CUDA → MPS → CPU, one CPU retry on OOM.
+5. Check first, install only what is missing, never reinstall, ask for system installs.
+6. Captions default Hindi (Devanagari); Hinglish and English optional.
+7. Stock: no-key sources only (Openverse, Wikimedia, NASA); Pixabay only with a user key.
+8. Six install routes; only the tested ones are marked tested.
+9. Zero paid APIs, zero cloud render, zero telemetry, no watermarks.
+
+## 8. Uninstall
+
+Delete the linked folder (`<skills dir>/video-vfx-editor`). Nothing was
+installed system-wide by this tool except what you approved in step 2.

@@ -1,0 +1,18 @@
+{
+  "id": "ticker",
+  "description": "Scrolling ticker line at the bottom",
+  "duration": 4.0,
+  "text_limit": 60,
+  "animation": "ticker",
+  "weight": "regular",
+  "color": "#FFFFFF",
+  "accent": "#D7263D",
+  "safe_zone": {
+    "top": 0.08,
+    "bottom": 0.18,
+    "left": 0.08,
+    "right": 0.08
+  },
+  "ease": "out",
+  "entrance_ms": 260
+}

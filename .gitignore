@@ -1,0 +1,16 @@
+edit/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+models/
+assets/fonts/*.ttf
+assets/fonts/*.otf
+refs/
+styles/*/frames/
+*.mp4
+*.mov
+*.mkv
+*.wav
+*.log
+.DS_Store

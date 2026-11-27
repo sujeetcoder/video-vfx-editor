@@ -1,0 +1,18 @@
+{
+  "id": "word-pop",
+  "description": "Single word pops on a beat",
+  "duration": 1.4,
+  "text_limit": 18,
+  "animation": "pop",
+  "weight": "bold",
+  "color": "#FFE066",
+  "accent": "#111111",
+  "safe_zone": {
+    "top": 0.08,
+    "bottom": 0.18,
+    "left": 0.08,
+    "right": 0.08
+  },
+  "ease": "out",
+  "entrance_ms": 260
+}

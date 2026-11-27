@@ -1,0 +1,18 @@
+{
+  "id": "kinetic-hook",
+  "description": "Big kinetic hook line that slides in word by word",
+  "duration": 2.8,
+  "text_limit": 34,
+  "animation": "slideUp",
+  "weight": "bold",
+  "color": "#FFFFFF",
+  "accent": "#FF3B30",
+  "safe_zone": {
+    "top": 0.08,
+    "bottom": 0.18,
+    "left": 0.08,
+    "right": 0.08
+  },
+  "ease": "out",
+  "entrance_ms": 260
+}

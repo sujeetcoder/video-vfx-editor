@@ -1,0 +1,8 @@
+{
+  "id": "logo-sting-3d",
+  "engine": "three.js",
+  "duration": 2.4,
+  "description": "Logo extrudes, rotates 15 degrees, lands with a light sweep",
+  "requires": "node + puppeteer",
+  "composite": "alpha"
+}

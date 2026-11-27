@@ -1,0 +1,18 @@
+{
+  "id": "progress-bar",
+  "description": "Thin progress bar across the top",
+  "duration": 3.0,
+  "text_limit": 12,
+  "animation": "bar",
+  "weight": "regular",
+  "color": "#FF3B30",
+  "accent": "#000000",
+  "safe_zone": {
+    "top": 0.08,
+    "bottom": 0.18,
+    "left": 0.08,
+    "right": 0.08
+  },
+  "ease": "out",
+  "entrance_ms": 260
+}

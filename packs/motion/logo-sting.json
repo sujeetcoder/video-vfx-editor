@@ -1,0 +1,18 @@
+{
+  "id": "logo-sting",
+  "description": "Logo scales in with a light sweep",
+  "duration": 2.0,
+  "text_limit": 16,
+  "animation": "scaleIn",
+  "weight": "bold",
+  "color": "#FFFFFF",
+  "accent": "#1C1C1E",
+  "safe_zone": {
+    "top": 0.08,
+    "bottom": 0.18,
+    "left": 0.08,
+    "right": 0.08
+  },
+  "ease": "out",
+  "entrance_ms": 260
+}
