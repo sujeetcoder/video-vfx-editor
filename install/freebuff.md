@@ -31,6 +31,8 @@ python scripts/forge.py resume --json
    (`forge.py approve 1 4 7`) before any render.
 6. Finish by running `scripts/check.py` and quoting the measured numbers; state
    clearly what was not tested.
+7. If the user says the skill changed on GitHub, run
+   `python install/update.py --apply --json` and restart the session.
 
 Freebuff-specific notes:
 

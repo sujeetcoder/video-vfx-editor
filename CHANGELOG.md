@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.1.5 — 2026-11-28
+
+Update path: an installed copy can now follow the repository. Tell an agent
+*"update the video-vfx-editor skill"* and it runs `install/update.py` instead of
+hand-editing the installed folder.
+
+### Added
+
+- **`install/update.py`** — `--check` compares the installed copy with GitHub's
+  branch head and exits **2** when there is something newer; `--apply` updates in
+  place and re-runs `doctor.py`. Git checkouts fast-forward (`git fetch` +
+  `git merge --ff-only`); paste/tarball copies are refreshed from the branch
+  tarball, reporting created, changed, unchanged and `leftover` files. `edit/`,
+  `.git`, models and node_modules are never touched, upstream deletions are
+  reported rather than removed, and a dirty checkout is refused with a fix.
+  `--agent all --global` re-links the agent folders afterwards.
+- `tests/test_update.py` — version parsing, origin matching, and `sync_tree`
+  (create/update/leftover, `edit/` and `.git` preserved).
+- Docs name the trigger and the command: `SKILL.md` §11, `INSTALL.md` §5,
+  `AGENTS.md`, `README.md`, `install/freebuff.md`.
+
+### Verified
+
+- `doctor.py`: **17 PASS, 0 FAIL**, only the optional RVM-model and CPU WARNs.
+- **63 tests pass** (59 before), pyflakes clean, `agent-paste.md` regenerated.
+- `--check` on this checkout: `already up to date (0.1.5)`, exit 0.
+- Copy mode on a stale tree (`c9b3895`, no `.git`): check reports the update and
+  exits 2, apply reports the changed files and lands on 0.1.5.
+- Git mode on a stale clone: fetch + `--ff-only` moves it to the new head.
+
 ## 0.1.4 — 2026-11-27
 
 Simplification pass over the installer added in 0.1.3. Same capabilities, less

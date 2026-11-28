@@ -103,7 +103,24 @@ python install/setup.py --list                 # where each agent looks
 Windows without Developer Mode cannot symlink; `setup.py` copies instead and
 says so. The folder name must be exactly `video-vfx-editor`.
 
-## 5. The six install routes
+## 5. Updating an installed copy
+
+When the repo changes on GitHub, an agent can be told *"update the
+video-vfx-editor skill"* and should run:
+
+```bash
+python install/update.py --check --json    # read-only; exit 2 = newer commit
+python install/update.py --apply --json    # update this folder, then doctor
+```
+
+A git checkout fast-forwards (`git fetch` + `git merge --ff-only`); a plain copy
+from a paste or tarball install is refreshed with the branch tarball, and every
+changed file is reported. `edit/`, `.git`, models, node_modules and `~/.vfe` are
+untouched; files deleted upstream are listed as `leftover`, never removed. A
+dirty checkout is refused with a fix. Add `--agent all --global` to re-link the
+agent folders after updating, and restart the agent so it reloads `SKILL.md`.
+
+## 6. The six install routes
 
 | Route | Command | Tested here |
 |---|---|---|
@@ -117,7 +134,7 @@ says so. The folder name must be exactly `video-vfx-editor`.
 Mark honestly in your report which routes you exercised. Do not claim "works"
 for a route you did not run.
 
-## 6. Verify before the first job
+## 7. Verify before the first job
 
 ```bash
 python install/doctor.py --json
@@ -129,7 +146,7 @@ Acceptance: `doctor` exits 0 (or lists exact FAIL fixes) with Python
 `3.11–3.13` (3.12.16 when provisioned), `scripts/*.py --help` all work, and
 `edit/state.json` is created. Then start with `SKILL.md`.
 
-## 7. Locked decisions (do not change without asking)
+## 8. Locked decisions (do not change without asking)
 
 1. Repo/skill name `video-vfx-editor`; folder name identical.
 2. 100k+ context models only — no small-model or "safe" mode.
@@ -142,7 +159,7 @@ Acceptance: `doctor` exits 0 (or lists exact FAIL fixes) with Python
 8. Six install routes; only the tested ones are marked tested.
 9. Zero paid APIs, zero cloud render, zero telemetry, no watermarks.
 
-## 8. Uninstall
+## 9. Uninstall
 
 Delete the linked folder (`<skills dir>/video-vfx-editor`). To reclaim disk,
 the user-local runtime can go too — nothing here was installed system-wide and

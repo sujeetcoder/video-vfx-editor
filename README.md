@@ -27,6 +27,19 @@ Then tell your agent:
 
 The agent asks 5–8 pre-filled questions and runs the pipeline.
 
+## Updating an installed copy
+
+When the repo changes, tell your agent to update the skill, or run it yourself:
+
+```bash
+python install/update.py --check --json    # read-only; exit 2 = newer commit
+python install/update.py --apply --json    # update in place, then doctor
+```
+
+A git checkout is fast-forwarded; a pasted/tarball copy is re-downloaded and its
+changed files replaced, with `edit/` work left alone. Add `--agent all --global`
+to re-link the agent folders, then restart the agent so it reloads `SKILL.md`.
+
 ## What it actually does
 
 - **Cut**: removes silences and Hindi/English fillers, lossless-first, 30 ms fades
@@ -53,7 +66,7 @@ SKILL.md          the agent-facing core loop
 INSTALL.md        install instructions written for an agent
 scripts/          one script per stage, every one speaks --json
 references/       deep notes + 11 playbooks
-install/          check-first installer, doctor, paste file
+install/          check-first installer, doctor, updater, paste file
 evals/            task suite and recovery tests
 tests/            pytest for pure logic and golden filtergraphs
 ```

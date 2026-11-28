@@ -4,7 +4,7 @@ description: Professional video editing AND clipping on the local machine with F
 license: MIT (code) + CC-BY-4.0 (prose)
 compatibility: Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI, Freebuff. Requires Python 3.11-3.13 (3.12.16 auto-provisioned user-locally), FFmpeg with libass, Node 22 (20 acceptable).
 metadata:
-  version: 0.1.4
+  version: 0.1.5
   runtime: python+ffmpeg+node
   models: 100k-context
   install: INSTALL.md
@@ -179,7 +179,30 @@ Face tracking every 3rd frame at 360p, 5-frame median, 40 px/frame clamp,
 scene-cut reset, `contain + blur` fallback when no face or the subject would
 leave the crop. Keyframes land in `virtual-camera.json`. Zoom ≤1.25×, 180–320 ms.
 
-## 11. House rules
+## 11. Keeping the skill current
+
+Trigger: *"update the video-vfx-editor skill"* — or whenever the user says the
+repo has changed on GitHub. Update the installed folder in place; never edit it
+by hand, never clone a second copy over an existing link.
+
+```bash
+python install/update.py --check --json    # read-only; warn = update available
+python install/update.py --apply --json    # update in place, then run doctor
+python install/update.py --apply --agent all --global --json   # and re-link agents
+```
+
+- A git checkout is fast-forwarded (`git fetch` + `git merge --ff-only`); a plain
+  copy from paste/tarball is refreshed with the branch tarball.
+- `edit/`, `.git`, models, node_modules and `~/.vfe` are never touched. Files
+  deleted upstream come back as `leftover` in the log — report, do not delete.
+- A dirty checkout is refused: ask the user to commit or stash first.
+- `--check` exits **2** when a newer commit exists; that is information, not an
+  error. In a plain copy it compares the declared version, so it sees releases,
+  while `--apply` always fetches the real head.
+- After updating, restart the agent session — instructions load at startup — and
+  quote `doctor`'s FAIL/WARN list rather than claiming the update "worked".
+
+## 12. House rules
 
 - Ask the user only for: a wrong repo/owner, a licence decision, or permission
   for a system-level install. Everything else: decide, write it down, continue.
@@ -188,3 +211,5 @@ leave the crop. Keyframes land in `virtual-camera.json`. Zoom ≤1.25×, 180–3
 - Keep `edit/` out of version control; never commit media, models, node_modules.
 - Finish a turn with: what was produced, which gates ran (with numbers), what
   was not tested, and the exact next command.
+- Keep the skill itself current with `install/update.py`; this is the only
+  supported way to change the installed code.
