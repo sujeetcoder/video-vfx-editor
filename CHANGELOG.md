@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.1.8 — 2026-11-28
+
+Simplification pass over what 0.1.6/0.1.7 added. No pipeline output changed: the
+post-review run's SRT, ASS and transcript are byte-identical to the pre-review
+run, with the same ten gates.
+
+### Simplified
+
+- **`scripts/caption.py`**: the width of a caption line was computed three ways —
+  a nested `width()` inside `chunk_words`, an inline `len(" ".join(...))` in the
+  orphan-merge condition, and the same join again in `safe_zone_ok`. One module
+  helper, `line_width()`, now serves all three, and `safe_zone_ok()` collapsed
+  from a loop into comprehension form.
+- **`scripts/check.py`**: `find_captions()` listed every state artifact twice
+  (`with_suffix(".srt")` and the identical `parent / (stem + ".srt")`).
+  `caption_report()` no longer re-derives `.srt` from a path it was handed, and
+  measures widest line, line count and last cue in **one pass** instead of
+  reading the file twice. The `captions_missing` guard now tests
+  `captions.enabled` instead of `lang not in ("none", None)`.
+- **`tests/test_cut_caption.py`**: the merge and no-overflow tests used the same
+  five-word fixture verbatim; they are one test asserting both directions.
+
+Line counts: `caption.py` 258 → **254**, `check.py` 245 → **243**,
+`tests/test_cut_caption.py` 113 → **108**; suite 65 → 64 (two tests merged).
+
+### Left alone, deliberately
+
+- `chunk_words()`'s over-long-token post-pass and the merge budget rule, the
+  `no_repeat_ngram_size`/`repetition_penalty` options and the model-keyed
+  transcript cache in `asr.py`: these are the behaviour the caption gates and
+  the cache-correctness fix depend on.
+- `plan.json`'s `captions.max_chars`: `clips.py` reads it for clip sidecars while
+  `caption.py` derives its own budget from frame width. Unifying them would
+  change clip caption widths — a behaviour change, not a simplification.
+- `install/update.py --check`: inert (read-only is the default) but it is the
+  documented spelling of that path in five documents.
+- The 8-line HTTPS helpers duplicated between `ensure.py` and `update.py`: a
+  shared module would add a file to save nothing.
+
+### Verified
+
+Fresh project (`~/.vfe/proj-final`) on the same clip with the shipped default
+model (`small`): **10/10 gates**, 3 m 35 s, 1080×1920 @30, −14.5 LUFS,
+−1.7 dBTP, 0 black runs, 0 freezes, captions 17 chars max, last cue 52.87 s.
+Transcript text, `cut.srt` and `cut.ass` **byte-identical** to the pre-review
+run; ASR 122 words / 11 segments; `caption_report` identical
+(`max_chars 17, lines 41, last_end 52.87`). **64 tests pass**, pyflakes clean,
+`agent-paste.md` current, doctor 17 PASS / 0 FAIL.
+
 ## 0.1.7 — 2026-11-28
 
 `faster-whisper medium` downloaded and the same Hindi clip run through the whole

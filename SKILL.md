@@ -4,7 +4,7 @@ description: Professional video editing AND clipping on the local machine with F
 license: MIT (code) + CC-BY-4.0 (prose)
 compatibility: Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI, Freebuff. Requires Python 3.11-3.13 (3.12.16 auto-provisioned user-locally), FFmpeg with libass, Node 22 (20 acceptable).
 metadata:
-  version: 0.1.7
+  version: 0.1.8
   runtime: python+ffmpeg+node
   models: 100k-context
   install: INSTALL.md

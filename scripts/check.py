@@ -99,7 +99,7 @@ def evaluate(info: dict, loud: dict, black: list, freeze: list, caption_report: 
         add("caption_tail", caption_report.get("last_end", 0) <= info.get("duration", 0) + 0.05,
             caption_report.get("last_end"), "inside the video",
             "the last caption outlives the video; re-run caption.py on the cut")
-    elif (plan.get("captions") or {}).get("lang", "none") not in ("none", None):
+    elif (plan.get("captions") or {}).get("enabled"):
         # Captions were planned and cannot be found: report it, never skip quietly.
         add("captions_missing", False, "no srt", "captions verifiable",
             "run caption.py on the cut so check.py has captions to measure")
@@ -131,27 +131,25 @@ def evaluate(info: dict, loud: dict, black: list, freeze: list, caption_report: 
 def find_captions(path: Path, state: dict) -> Path | None:
     """The SRT sits beside the file caption.py captioned, not the render."""
     candidates = [path.with_suffix(".srt")]
-    for artifact in (state.get("artifacts") or {}).values():
-        side = Path(artifact)
-        candidates += [side.with_suffix(".srt"), side.parent / (side.stem + ".srt")]
+    candidates += [Path(a).with_suffix(".srt") for a in (state.get("artifacts") or {}).values()]
     return next((c for c in candidates if c.is_file()), None)
 
 
-def caption_report(path: Path) -> dict:
-    srt = path.with_suffix(".srt")
+def caption_report(srt: Path) -> dict:
+    """Measure the captions in one pass: widest line, count, last cue end."""
     if not srt.is_file():
         return {}
-    text = srt.read_text(encoding="utf-8", errors="replace")
-    lines = [ln for ln in text.splitlines() if ln and "-->" not in ln and not ln.strip().isdigit()]
-    last_end = 0.0
-    for ln in text.splitlines():
+    lines, last_end = [], 0.0
+    for ln in srt.read_text(encoding="utf-8", errors="replace").splitlines():
         if "-->" in ln:
-            end = ln.split("-->")[1].strip().split()[0].replace(",", ".")
+            stamp = ln.split("-->")[1].strip().split()[0].replace(",", ".")
             try:
-                h, m, s = end.split(":")
+                h, m, s = stamp.split(":")
                 last_end = max(last_end, int(h) * 3600 + int(m) * 60 + float(s))
             except ValueError:
                 pass
+        elif ln and not ln.strip().isdigit():
+            lines.append(ln)
     return {"max_chars": max((len(ln) for ln in lines), default=0), "lines": len(lines),
             "last_end": round(last_end, 3)}
 
@@ -200,7 +198,7 @@ def main(argv=None) -> int:
                              "true_peak_db": float(peak.group(1)) if peak else None},
                 "black": parse_blackdetect(black_out),
                 "freeze": parse_freezedetect(freeze_out),
-                "caption_report": caption_report(find_captions(p, state) or p),
+                "caption_report": caption_report(srt) if (srt := find_captions(p, state)) else {},
                 "sidecar": sidecar,
             }
             checks = evaluate(result, result["loudness"], result["black"], result["freeze"],

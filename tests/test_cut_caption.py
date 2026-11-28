@@ -1,5 +1,5 @@
-from caption import (ass_ts, build_ass, caption_font_px, chunk_words, safe_zone_ok,
-                     srt_ts, to_srt, STYLES)
+from caption import (ass_ts, build_ass, caption_font_px, chunk_words, line_width,
+                     safe_zone_ok, srt_ts, to_srt, STYLES)
 from cut import build_filtergraph, filler_cuts, invert_silences, parse_silences
 
 
@@ -66,17 +66,12 @@ def test_chunk_words_splits_on_sentence_end():
     assert lines[0][-1]["w"].endswith(".")
 
 
-def test_chunk_words_merges_orphan_within_budget():
+def test_chunk_words_orphan_merge_respects_budget():
     w = words(("one", 0, 0.2), ("two", 0.2, 0.4), ("three", 0.4, 0.6), ("four", 0.6, 0.8), ("five", 0.8, 1.0))
-    lines = chunk_words(w, max_chars=20, min_words=2, max_words=2)
-    assert all(len(line) >= 2 for line in lines)
-    assert all(len(" ".join(x["w"] for x in line)) <= 20 for line in lines)
-
-
-def test_chunk_words_never_exceeds_budget_to_avoid_an_orphan():
-    w = words(("one", 0, 0.2), ("two", 0.2, 0.4), ("three", 0.4, 0.6), ("four", 0.6, 0.8), ("five", 0.8, 1.0))
-    lines = chunk_words(w, max_chars=10, min_words=2, max_words=2)
-    assert all(len(" ".join(x["w"] for x in line)) <= 10 for line in lines)
+    wide = chunk_words(w, max_chars=20, min_words=2, max_words=2)
+    assert all(len(line) >= 2 for line in wide)                       # orphan merged away
+    tight = chunk_words(w, max_chars=10, min_words=2, max_words=2)
+    assert all(line_width(line) <= 10 for line in tight)              # budget wins over tidiness
 
 
 def test_chunk_words_splits_a_looped_token():

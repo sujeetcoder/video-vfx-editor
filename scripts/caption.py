@@ -31,17 +31,17 @@ DEVANAGARI_FONT = "Noto Sans Devanagari"
 # --------------------------------------------------------------------------
 # pure helpers (unit tested)
 # --------------------------------------------------------------------------
+def line_width(words) -> int:
+    return len(" ".join(w["w"] for w in words))
+
+
 def chunk_words(words, max_chars: int = 32, min_words: int = 2, max_words: int = 4) -> list:
     lines, cur = [], []
-
-    def width(ws):
-        return len(" ".join(w["w"] for w in ws))
-
     for w in words:
         token = str(w.get("w", "")).strip()
         if not token:
             continue
-        if cur and (width(cur + [w]) > max_chars or len(cur) >= max_words):
+        if cur and (line_width(cur + [w]) > max_chars or len(cur) >= max_words):
             lines.append(cur)
             cur = []
         cur.append(w)
@@ -54,7 +54,7 @@ def chunk_words(words, max_chars: int = 32, min_words: int = 2, max_words: int =
     for line in lines:
         # Re-join a lone trailing word only when the result still fits: an orphan
         # is ugly, an over-budget caption line is a gate failure.
-        if len(line) == 1 and fixed and len(" ".join(w["w"] for w in fixed[-1] + line)) <= max_chars:
+        if len(line) == 1 and fixed and line_width(fixed[-1] + line) <= max_chars:
             fixed[-1].extend(line)
         else:
             fixed.append(line)
@@ -166,12 +166,8 @@ def build_ass(lines, width: int, height: int, style: dict, position: str = "bott
 
 
 def safe_zone_ok(lines, max_chars: int = 32, max_words: int = 4) -> list:
-    bad = []
-    for line in lines:
-        text = " ".join(w["w"] for w in line)
-        if len(text) > max_chars or len(line) > max_words:
-            bad.append(text)
-    return bad
+    return [" ".join(w["w"] for w in line) for line in lines
+            if line_width(line) > max_chars or len(line) > max_words]
 
 
 # --------------------------------------------------------------------------
