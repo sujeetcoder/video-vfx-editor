@@ -115,7 +115,7 @@ python install/update.py --apply --json    # update this folder, then doctor
 
 `edit/` work, `.git`, models and `~/.vfe` are never touched, a dirty checkout is
 refused, and upstream deletions are reported as `leftover` rather than removed.
-Add `--agent all --global` to re-link the agent folders. `SKILL.md` §11 is the
+Add `--agent all --global` to re-link the agent folders. `SKILL.md` §12 is the
 canonical description; restart the agent so it reloads `SKILL.md`.
 
 ## 6. The six install routes

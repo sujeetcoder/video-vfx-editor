@@ -20,12 +20,14 @@ from _contract import (FailedCheck, InvalidInput, MissingCapability, NeedsUserIn
 from _paths import (Lock, append_decision, edit_dir, ensure_edit, project_root,  # noqa: E402
                     read_json, record_stage, save_state, stage_done, write_json)
 
-EDIT_STAGES = ["ingest", "probe", "intake", "plan", "cut", "asr", "caption", "audio", "export", "check"]
+EDIT_STAGES = ["ingest", "probe", "intake", "plan", "cut", "asr", "camera", "broll",
+               "caption", "audio", "export", "check"]
 CLIP_STAGES = ["ingest", "probe", "intake", "asr", "plan", "approve", "clips", "check"]
 
 STAGE_SCRIPT = {
     "ingest": "ingest.py", "probe": "probe.py", "intake": "intake.py", "plan": "plan.py",
     "cut": "cut.py", "scenes": "scenes.py", "asr": "asr.py", "caption": "caption.py",
+    "camera": "camera.py", "broll": "broll.py", "assets": "assets.py",
     "audio": "audio.py", "export": "export.py", "check": "check.py", "clips": "clips.py",
     "clipfind": "clipfind.py", "style": "style.py", "graphics": "graphics.py",
 }
@@ -60,9 +62,13 @@ def stage_command(state: dict, name: str, root: Path) -> str:
         return f'{base} "{art.get("ingest", src)}"'
     if name == "asr":
         return f'{base} "{art.get("cut") or art.get("ingest", src)}" --lang {state.get("params", {}).get("lang", "hi")}'
+    if name == "camera":
+        return f'{base} "{art.get("cut") or art.get("ingest", src)}"'
+    if name == "broll":
+        return f'{base} "{art.get("camera") or art.get("cut") or art.get("ingest", src)}"'
     if name == "caption":
         # burn in the same pass: the export chain must carry the captions
-        return f'{base} "{art.get("cut") or art.get("ingest", src)}" --burn'
+        return f'{base} "{art.get("broll") or art.get("camera") or art.get("cut") or art.get("ingest", src)}" --burn'
     if name == "audio":
         return f'{base} "{art.get("caption") or art.get("cut") or art.get("ingest", src)}"'
     if name == "export":
@@ -73,6 +79,12 @@ def stage_command(state: dict, name: str, root: Path) -> str:
         target = art.get("export") or art.get("clips") or art.get("cut") or art.get("ingest", src)
         return f'{base} "{target}"'
     return base
+
+
+def final_output(state: dict) -> str | None:
+    """The artifact a user should open: the export (or the clip batch when that is the job)."""
+    art = state.get("artifacts", {})
+    return art.get("export") or art.get("clips")
 
 
 def brief(state: dict, root: Path) -> str:
@@ -89,6 +101,7 @@ def brief(state: dict, root: Path) -> str:
         "## DONE",
         *(f"- {s}" for s in done),
         "",
+        *( [f"## FINAL\n{final_output(state)}"] if final_output(state) else [] ),
         "## NOW",
         f"stage: {nxt}" if nxt else "all stages done — run check.py and report",
         f"NEXT: {stage_command(state, nxt, root) if nxt else 'python scripts/check.py --json'}",
@@ -250,7 +263,9 @@ def main(argv=None) -> int:
         elif cmd == "run":
             final, failure = do_run(state, root, args)
             nxt = next_stage(final)
+            rendered = final_output(final)
             run.ok(output=str(edit_dir(root) / "state.json"),
+                   artifacts=[rendered] if rendered else [],
                    next_cmd=stage_command(final, nxt, root) if nxt else None)
             if failure:
                 exc_cls = KIND_MAP.get(failure.get("kind", ""), SkillError)
@@ -260,11 +275,13 @@ def main(argv=None) -> int:
         elif cmd == "status":
             done = [s for s in stages_for(state) if stage_done(state, s)]
             run.device = state.get("device") or run.device
+            final = final_output(state)
             run.ok(output=f"{len(done)}/{len(stages_for(state))} stages",
-                   artifacts=[str(edit_dir(root) / "state.json")],
+                   artifacts=[str(edit_dir(root) / "state.json")] + ([final] if final else []),
                    next_cmd=stage_command(state, next_stage(state), root) if next_stage(state) else None)
             if not args.json:
                 print(f"run {state.get('run_id')} job={state.get('job')} stage={state.get('stage')}")
+                print(f"final video: {final or '(not rendered yet)'}")
                 for s in stages_for(state):
                     mark = "x" if stage_done(state, s) else " "
                     print(f"  [{mark}] {s}")

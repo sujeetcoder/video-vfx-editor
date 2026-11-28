@@ -111,7 +111,17 @@ def main(argv=None) -> int:
 
     with stage("ingest", args) as run:
         first = args.inputs[0]
-        if is_url(first):
+        folder = None if is_url(first) else Path(str(first).strip('"\'')).expanduser()
+        if folder is not None and folder.is_dir():
+            # A folder is a shoot: classify its assets, then ingest the main video.
+            from assets import scan
+
+            manifest = scan(folder)
+            write_json(work_dir(root, "assets") / "assets.json", manifest)
+            data = ingest_local(Path(manifest["roles"]["video"]), root)
+            data["assets"] = manifest["roles"]
+            log(f"folder: {len(manifest['assets'])} assets, main video {Path(data['path']).name}")
+        elif is_url(first):
             if len(args.inputs) > 1:
                 raise InvalidInput("ingest one URL at a time", fix="run ingest.py once per link")
             if not args.acknowledge_rights and not args.dry_run:

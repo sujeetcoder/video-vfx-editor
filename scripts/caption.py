@@ -24,6 +24,9 @@ STYLES = {
               "primary": "&H00FFFFFF", "highlight": "&H00FFFFFF", "outline": 4, "shadow": 1},
     "karaoke": {"font": "Inter", "size_pct": 0.050, "bold": -1, "upper": False,
                 "primary": "&H00FFFFFF", "highlight": "&H0000C8FF", "outline": 5, "shadow": 2},
+    # one word at a time, mid-frame: the short-form look (see references/assets-and-motion.md)
+    "kinetic": {"font": "Inter", "size_pct": 0.068, "bold": -1, "upper": False,
+                "primary": "&H00FFFFFF", "highlight": "&H00FFFFFF", "outline": 7, "shadow": 3},
 }
 DEVANAGARI_FONT = "Noto Sans Devanagari"
 
@@ -54,7 +57,9 @@ def chunk_words(words, max_chars: int = 32, min_words: int = 2, max_words: int =
     for line in lines:
         # Re-join a lone trailing word only when the result still fits: an orphan
         # is ugly, an over-budget caption line is a gate failure.
-        if len(line) == 1 and fixed and line_width(fixed[-1] + line) <= max_chars:
+        if (len(line) == 1 and fixed
+                and len(fixed[-1]) + 1 <= max_words
+                and line_width(fixed[-1] + line) <= max_chars):
             fixed[-1].extend(line)
         else:
             fixed.append(line)
@@ -177,7 +182,7 @@ def main(argv=None) -> int:
     parser.add_argument("input")
     parser.add_argument("--lang", default=None, choices=["hi", "hinglish", "en", "none"])
     parser.add_argument("--style", default=None, choices=sorted(STYLES))
-    parser.add_argument("--position", default="bottom", choices=["bottom", "middle", "top"])
+    parser.add_argument("--position", default=None, choices=["bottom", "middle", "top"])
     parser.add_argument("--burn", action="store_true", help="also render captions into a copy")
     parser.add_argument("--max-chars", type=int, default=32)
     parser.add_argument("--words", default=None, help="path to words.json")
@@ -224,7 +229,8 @@ def main(argv=None) -> int:
         ass = path.with_suffix(".ass")
         if not args.dry_run:
             srt.write_text(to_srt(lines), encoding="utf-8", newline="\n")
-            ass.write_text(build_ass(lines, width, height, style, args.position, lang), encoding="utf-8", newline="\n")
+            position = args.position or cap_cfg.get("position", "bottom")
+            ass.write_text(build_ass(lines, width, height, style, position, lang), encoding="utf-8", newline="\n")
 
         bad = safe_zone_ok(lines, max_chars, 4)
         run.add_check("caption_lines", "pass" if not bad else "warn", len(lines), "> 0")

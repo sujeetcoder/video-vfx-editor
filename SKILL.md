@@ -4,7 +4,7 @@ description: Professional video editing AND clipping on the local machine with F
 license: MIT (code) + CC-BY-4.0 (prose)
 compatibility: Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI, Freebuff. Requires Python 3.11-3.13 (3.12.16 auto-provisioned user-locally), FFmpeg with libass, Node 22 (20 acceptable).
 metadata:
-  version: 0.1.8
+  version: 0.2.0
   runtime: python+ffmpeg+node
   models: 100k-context
   install: INSTALL.md
@@ -119,6 +119,10 @@ fallback ranking. This measures clip strength, **not virality** — say so.
   verbatim to the user, per OS.
 - `--dry-run` prints every FFmpeg command and writes nothing.
 - `--device auto|cpu|cuda|mps` (env `VFE_DEVICE`). GPU OOM retries once on CPU.
+- **Every reply that completes or advances an edit ends with the final video
+  path**, on its own line: `final video: <path>`. `forge.py status` prints it, and
+  `forge.py run --json` returns it as the last artifact. Never make the user hunt
+  through `edit/out/`.
 
 ## 6. Device policy (do not re-derive)
 
@@ -127,9 +131,11 @@ fallback ranking. This measures clip strength, **not virality** — say so.
 `--mask-res 540 --every 2`. FFmpeg: `h264_nvenc` / `h264_videotoolbox` only when
 probed present, else `libx264`. earshot is CPU-only by design.
 
-ASR model: `small` is the default (484 MB). For Hindi, `medium` (1.5 GB, one-time
-`ensure.py --models`) measurably beats it on proper nouns — see PROGRESS.md; it
-costs ~2.7× the ASR time. The transcript cache is keyed by audio, language **and
+ASR model: **`medium` is the default** (1.5 GB, downloaded by
+`ensure.py --models`; `--model medium`). On the Hindi reference clip it recovered
+3/5 proper nouns where `small` got 1/5 (बैगा, डिंडोरी, जाति) for ~2.7× the ASR
+time — see PROGRESS.md. `--model small` / `VFE_WHISPER_MODEL=small` is the 484 MB
+fast opt-in for previews. The transcript cache is keyed by audio, language **and
 model**, so switching models re-transcribes instead of reusing the old words.
 
 ## 7. Gates — nothing is done until these pass
@@ -137,7 +143,7 @@ model**, so switching models re-transcribes instead of reusing the old words.
 1. duration / aspect / fps as planned
 2. loudness −14 or −16 LUFS ±1, true peak ≤ −1 dBTP
 3. `blackdetect` + `freezedetect` at cut points
-4. caption safe zone, ≤32 chars/line, 2–4 words
+4. caption safe zone, ≤32 chars/line, words per line per style (2–4, or 1 for `kinetic`)
 5. contact sheet generated (`sheet.py`) and actually looked at
 6. platform spec PASS/WARN/FAIL with a fix per FAIL
 7. chroma: matte coverage 65–85 %, white **and** black previews
@@ -184,7 +190,32 @@ Face tracking every 3rd frame at 360p, 5-frame median, 40 px/frame clamp,
 scene-cut reset, `contain + blur` fallback when no face or the subject would
 leave the crop. Keyframes land in `virtual-camera.json`. Zoom ≤1.25×, 180–320 ms.
 
-## 11. Keeping the skill current
+## 11. Shoot folders, camera motion, b-roll
+
+```bash
+python scripts/forge.py init "C:/clips/shoot" --job edit   # folder: roles are classified first
+python scripts/camera.py cut.mp4 --preset pan-right --json  # zoom-in|zoom-out|pan-*|tilt-*|ken-burns|none
+python scripts/broll.py camera.mp4 --count 2 --json         # inserts from the spoken topic
+```
+
+A **folder** is a shoot: `assets.py` classifies `video.mp4`, `background.png`,
+`background.wav`, `b-roll/`, `logo.png`, `*.srt` into roles (name decides intent,
+extension decides use) and `plan` folds them in — backdrop layout, ducked music
+bed, local inserts. Nothing is dropped silently; unknown files are listed.
+
+**Motion** is on by default for short-form playbooks (`ken-burns`), still for
+long-form; `--set motion=none|zoom-in|pan-left` overrides. **B-roll** lands on
+sentence boundaries, local assets first, then Openverse/Wikimedia/NASA keyed off
+that sentence's keywords — never a non-commercial licence. Full rules, presets and
+the measured map of the reference reels: `references/assets-and-motion.md`.
+
+**Long form is first class.** `youtube` / `tutorial` / `podcast` render 16:9@30
+with `motion=none`, bottom captions, 3 spaced inserts (0 for `podcast`), no
+backdrop unless the source aspect differs, and `--fit contain` still available
+for a talking head that must not be cropped. Nothing in the folder path assumes
+vertical, and `broll`/`camera` are skipped as `none` without shrinking the video.
+
+## 12. Keeping the skill current
 
 Trigger: *"update the video-vfx-editor skill"* — or whenever the user says the
 repo has changed on GitHub. Update the installed folder in place; never edit it
@@ -207,7 +238,7 @@ python install/update.py --apply --agent all --global --json   # and re-link age
 - After updating, restart the agent session — instructions load at startup — and
   quote `doctor`'s FAIL/WARN list rather than claiming the update "worked".
 
-## 12. House rules
+## 13. House rules
 
 - Ask the user only for: a wrong repo/owner, a licence decision, or permission
   for a system-level install. Everything else: decide, write it down, continue.

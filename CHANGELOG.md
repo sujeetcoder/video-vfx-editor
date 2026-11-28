@@ -1,5 +1,84 @@
 # Changelog
 
+## 0.2.0 — 2026-11-28
+
+A folder is now a shoot, not a single file: asset roles are classified, the
+camera moves, topic b-roll is cut in, and `medium` is the ASR default. Verified
+on the Hindi clip through both a 9:16 reel and a 16:9 long-form run.
+
+### Folder inputs (`assets.py`, `ingest.py`, `plan.py`)
+
+`forge.py init "<folder>"` (or `assets.py "<folder>"`) classifies every file:
+`video` (talking head), `background` (art for a framed layout), `music` (bed),
+`broll`, `overlay`, `subtitles`. The name decides the intent, the extension
+decides the use — `background.wav` is a bed, `background.png` is art,
+`background.mp4` is footage. Extra videos become b-roll instead of being
+ignored, and unrecognised files are reported in `notes`. `plan` then folds the
+roles in: bed under the voice, `layout = backdrop`, local inserts first.
+
+### Camera motion (`camera.py`)
+
+`zoom-in`, `zoom-out`, `pan-left`, `pan-right`, `tilt-up`, `tilt-down`,
+`ken-burns`, `none` — a `zoompan` over a frame already cropped to the
+deliverable aspect, bounded to ≤16 % zoom. On by default for short-form
+playbooks, `none` for long-form (`--set motion=...` overrides). Measured on the
+real run: ORB/affine median scale **1.070** with **23.8 px** drift per sample.
+
+### Topic b-roll (`broll.py`)
+
+Inserts land on sentence boundaries (hook and tail reserved), 1.5–2.4 s with
+0.22 s alpha fades and their own slow zoom. Local folder assets are used first,
+then Openverse/Wikimedia/NASA; credits go to `credits.md`; a non-commercial
+licence fails the stage check. Two inserts landed at 12.09 s (local) and
+40.39 s (Wikimedia, *Natives of northern India*, no restrictions).
+
+### Medium is the default ASR
+
+`asr.py --model` and `ensure.py --models` now default to `medium` (3/5 proper
+nouns on the reference clip vs 1/5 for `small`); `--model small` and
+`VFE_WHISPER_MODEL=small` remain the fast path. Install pre-downloads medium.
+
+### Short-form look + final-path rule
+
+- `caption.py --style kinetic`: one word, mid-frame, heavy outline, with
+  `plan.captions.position` now respected (it was hard-wired to the CLI default).
+- Every `forge.py run/status` reports the finished file, and `SKILL.md` requires
+  every reply to end with `final video: <path>`.
+
+### Bugs this pass found and fixed
+
+1. **Camera shortened the video**: `zoompan` emits one frame per *input* frame,
+   so a 25 fps source reached 30 fps by re-timing — 53.8 s became 44.8 s and the
+   caption-tail gate failed. `fps=` now runs before `zoompan`.
+2. **Music bed dragged loudness to −18.9 LUFS**: `amix` halved the voice after
+   loudnorm and `dynaudnorm` compounded it. The mix now uses `normalize=0`, is
+   measured as a mix, then normalised with those measurements (−14.4 measured).
+3. **B-roll inserted nothing**: slot picking read `start`/`end` while transcripts
+   emit `s`/`e`. Also added single-keyword and explicit-topic fallbacks, because
+   multi-word Devanagari queries match Wikimedia titles poorly.
+4. **Orphan merge ignored `max_words`**, re-joining one-word `kinetic` lines into
+   2–5 words. Merge now respects both the width and word budgets.
+5. **Backdrop was invisible**: the camera stage had already cropped to the
+   deliverable, so a full-size contain covered the art. The shot is inset 8 %
+   (6 % at 16:9) so `background.png` actually frames it.
+
+### Verified
+
+- **9:16 reel, folder input** (`~/.vfe/proj-demo2`, all 12 stages): **10/10
+gates** — 53.768 s, 1080×1920 @30, −14.4 LUFS, −1.7 dBTP, 0 black, 0 freezes,
+111 kinetic caption lines (max 17 chars), tail 53.05 s. 8 m 48 s end to end.
+- **16:9 long-form** (`~/.vfe/proj-long`, tutorial playbook): **10/10 gates** —
+1920×1080 @30, −16.1 LUFS, 0 black, 0 freezes, clean bottom captions (28 chars
+max), `motion=none`, 3 inserts. 5 m 17 s.
+- 88 tests pass, pyflakes clean, doctor 17 PASS / 0 FAIL.
+
+### Known limits
+
+- Hindi topic search needs an English hint (`plan.broll.query`, `--query`); the
+  keyword path alone returns loose matches for Devanagari transcripts.
+- Long-form camera motion stays off by default: it costs a re-encode per frame
+  and reads as drift on a 40-minute talk.
+
 ## 0.1.8 — 2026-11-28
 
 Simplification pass over what 0.1.6/0.1.7 added. No pipeline output changed: the

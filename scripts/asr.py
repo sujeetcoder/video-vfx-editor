@@ -159,7 +159,9 @@ def main(argv=None) -> int:
     parser.add_argument("input")
     parser.add_argument("--lang", default="hi", choices=["hi", "hinglish", "en", "auto"])
     parser.add_argument("--asr", default="auto", choices=["auto", "faster", "openai", "cpp"])
-    parser.add_argument("--model", default=os.environ.get("VFE_WHISPER_MODEL", "small"), choices=MODEL_SIZES)
+    # medium is the default: on the Hindi reference clip it recovered 3/5 proper nouns
+    # where small got 1/5. `--model small` is the fast opt-in.
+    parser.add_argument("--model", default=os.environ.get("VFE_WHISPER_MODEL", "medium"), choices=MODEL_SIZES)
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
     root = project_root(args.project)

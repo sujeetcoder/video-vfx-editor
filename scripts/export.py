@@ -53,6 +53,7 @@ def main(argv=None) -> int:
     parser.add_argument("--preset", default=None, choices=sorted(PRESETS))
     parser.add_argument("--plan", default=None)
     parser.add_argument("--fit", default="fill", choices=["fill", "contain"])
+    parser.add_argument("--background", default=None, help="image behind a contained frame")
     parser.add_argument("--out", default=None)
     parser.add_argument("--crf", type=int, default=20)
     args = parser.parse_args(argv)
@@ -77,12 +78,31 @@ def main(argv=None) -> int:
         out_path = Path(args.out) if args.out else root / "edit" / "out" / f"run-{run_id}" / f"{path.stem}-{preset_name}.mp4"
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
-        vf = fit_filter(width, height, fps, args.fit)
-        cmd = [ffmpeg_bin(), "-hide_banner", "-nostdin", "-y", "-i", str(path),
-               "-vf", vf, *encoder_args(dev["encoder"], args.crf),
-               "-maxrate", preset["v_bitrate"], "-bufsize", "12M",
-               "-c:a", "aac", "-b:a", preset["audio"], "-ar", "48000",
-               "-movflags", "+faststart", "-pix_fmt", "yuv420p"]
+        background = args.background or (plan.get("assets") or {}).get("background")
+        if background and Path(background).is_file():
+            # Supplied backdrop instead of black bars: art fills the frame, the shot sits inside it.
+            # Inset the shot so the art frames it: with a 9:16 camera crop already applied,
+            # a full-size contain would cover the backdrop completely.
+            inset = 0.92 if height > width else 0.94
+            iw, ih = int(width * inset) // 2 * 2, int(height * inset) // 2 * 2
+            graph = (f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                     f"crop={width}:{height},setsar=1[bg];"
+                     f"[1:v]scale={iw}:{ih}:force_original_aspect_ratio=decrease[fg];"
+                     f"[bg][fg]overlay=(W-w)/2:(H-h)/2,fps={fps},format=yuv420p[v]")
+            cmd = [ffmpeg_bin(), "-hide_banner", "-nostdin", "-y", "-loop", "1",
+                   "-i", str(background), "-i", str(path),
+                   "-filter_complex", graph, "-map", "[v]", "-map", "1:a?", "-shortest",
+                   *encoder_args(dev["encoder"], args.crf),
+                   "-maxrate", preset["v_bitrate"], "-bufsize", "12M",
+                   "-c:a", "aac", "-b:a", preset["audio"], "-ar", "48000",
+                   "-movflags", "+faststart", "-pix_fmt", "yuv420p"]
+        else:
+            vf = fit_filter(width, height, fps, args.fit)
+            cmd = [ffmpeg_bin(), "-hide_banner", "-nostdin", "-y", "-i", str(path),
+                   "-vf", vf, *encoder_args(dev["encoder"], args.crf),
+                   "-maxrate", preset["v_bitrate"], "-bufsize", "12M",
+                   "-c:a", "aac", "-b:a", preset["audio"], "-ar", "48000",
+                   "-movflags", "+faststart", "-pix_fmt", "yuv420p"]
         if preset.get("max"):
             cmd += ["-t", str(preset["max"])]
         cmd.append(str(out_path))

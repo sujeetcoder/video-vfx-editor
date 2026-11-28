@@ -68,10 +68,18 @@ def test_chunk_words_splits_on_sentence_end():
 
 def test_chunk_words_orphan_merge_respects_budget():
     w = words(("one", 0, 0.2), ("two", 0.2, 0.4), ("three", 0.4, 0.6), ("four", 0.6, 0.8), ("five", 0.8, 1.0))
-    wide = chunk_words(w, max_chars=20, min_words=2, max_words=2)
-    assert all(len(line) >= 2 for line in wide)                       # orphan merged away
     tight = chunk_words(w, max_chars=10, min_words=2, max_words=2)
     assert all(line_width(line) <= 10 for line in tight)              # budget wins over tidiness
+    solo = chunk_words(w, max_chars=20, min_words=1, max_words=1)
+    assert all(len(line) == 1 for line in solo)                       # one-word style stays one word
+
+
+def test_orphan_merge_only_when_the_line_has_room():
+    w = words(("hi,", 0, 0.2), ("there", 0.2, 0.4), ("friend", 0.4, 0.6))
+    merged = chunk_words(w, max_chars=17, min_words=2, max_words=3)
+    assert len(merged) == 1 and len(merged[0]) == 3                   # orphan absorbed into a 2-word line
+    capped = chunk_words(w, max_chars=17, min_words=2, max_words=2)
+    assert [len(line) for line in capped] == [2, 1]                   # word cap blocks the merge
 
 
 def test_chunk_words_splits_a_looped_token():

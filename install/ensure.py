@@ -334,8 +334,10 @@ def download_fonts() -> str:
     return f"downloaded {ok}" if ok else "already present"
 
 
-def predownload_model() -> str:
-    model = os.environ.get("VFE_WHISPER_MODEL", "small")
+def predownload_model(model: str | None = None) -> str:
+    # medium is the shipped default (3/5 proper nouns on the Hindi reference clip vs
+    # 1/5 for small); --model small keeps the 484 MB fast path available.
+    model = model or os.environ.get("VFE_WHISPER_MODEL", "medium")
     code = ("from faster_whisper import WhisperModel\n"
             f"WhisperModel({model!r}, device='cpu', compute_type='int8')\n"
             "print('ok')\n")
@@ -360,6 +362,8 @@ def main(argv=None) -> int:
     parser.add_argument("--yes", action="store_true", help="non-interactive")
     parser.add_argument("--fonts", action="store_true", help="download fonts only")
     parser.add_argument("--models", action="store_true", help="pre-download whisper model")
+    parser.add_argument("--model", default=None, choices=["small", "medium", "large-v3"],
+                        help="whisper size to pre-download (default: medium)")
     args = parser.parse_args(argv)
 
     if not python_supported() and os.environ.get("VFE_BOOTSTRAPPED") != "1":
@@ -380,7 +384,7 @@ def main(argv=None) -> int:
         if args.fonts:
             results.append(_result("fonts", download_fonts))
         if args.models:
-            results.append(_result("whisper", predownload_model))
+            results.append(_result("whisper", lambda: predownload_model(args.model)))
         if args.install:
             results.extend(run_action(a, args.yes) for a in actions)
             caps = capabilities()

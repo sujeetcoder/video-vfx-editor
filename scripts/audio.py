@@ -21,6 +21,29 @@ from _paths import (ensure_edit, expand_inputs, ffmpeg_bin, project_root, read_j
 DEHUM_FREQS = (50, 60, 100, 120)
 
 
+def loudnorm_filter(loudness: float, true_peak: float, measured: dict | None = None) -> str:
+    ln = f"loudnorm=I={loudness}:TP={true_peak}:LRA=11"
+    if measured:
+        ln += (f":measured_I={measured['input_i']}:measured_TP={measured['input_tp']}"
+               f":measured_LRA={measured['input_lra']}:measured_thresh={measured['input_thresh']}"
+               f":offset={measured.get('target_offset', 0)}:linear=true")
+    return ln
+
+
+def mix_graph(voice_chain: str, music_db: float, tail: str) -> str:
+    """Duck the bed under the voice, mix without amix's level halving, then normalise the MIX.
+
+    `normalize=0` keeps the voice at its own target; the loudnorm in `tail` is what
+    holds the result at the target once the bed is added (amix default + dynaudnorm
+    used to drag a -14 delivery to -19).
+    """
+    return (f"[0:a]{voice_chain}[voice];"
+            f"[1:a]volume={music_db}dB,aloop=loop=-1:size=2e9[bed];"
+            f"[bed][voice]sidechaincompress=threshold=0.05:ratio=8:attack=20:release=400:makeup=1[duck];"
+            f"[voice][duck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,"
+            f"alimiter=limit=0.9{tail}[a]")
+
+
 def build_chain(denoise: bool = True, dehum: bool = True, deess: bool = True,
                 highpass: int = 80, normalize: bool = True, loudness: float = -14.0,
                 true_peak: float = -1.0, measured: dict | None = None) -> str:
@@ -36,12 +59,7 @@ def build_chain(denoise: bool = True, dehum: bool = True, deess: bool = True,
     if deess:
         parts.append("deesser=i=0.4")
     if normalize:
-        ln = f"loudnorm=I={loudness}:TP={true_peak}:LRA=11"
-        if measured:
-            ln += (f":measured_I={measured['input_i']}:measured_TP={measured['input_tp']}"
-                   f":measured_LRA={measured['input_lra']}:measured_thresh={measured['input_thresh']}"
-                   f":offset={measured.get('target_offset', 0)}:linear=true")
-        parts.append(ln)
+        parts.append(loudnorm_filter(loudness, true_peak, measured))
     return ",".join(parts)
 
 
@@ -96,16 +114,20 @@ def main(argv=None) -> int:
                              highpass=int((plan.get("audio") or {}).get("highpass", 80)),
                              loudness=target, true_peak=tp, measured=measured)
 
-        if args.music:
-            bed = expand_inputs([args.music])[0]
-            graph = (
-                f"[0:a]{chain2}[voice];"
-                f"[1:a]volume={args.music_db}dB,aloop=loop=-1:size=2e9[bed];"
-                f"[bed][voice]sidechaincompress=threshold=0.05:ratio=8:attack=20:release=400:makeup=1[duck];"
-                f"[voice][duck]amix=inputs=2:duration=first:dropout_transition=0,dynaudnorm=f=200[a]"
-            )
+        music = args.music or (plan.get("audio") or {}).get("music")
+        if music:
+            bed = expand_inputs([music])[0]
+            # pass 2: measure the mix itself, so the bed cannot drag the delivery off target
+            rc, mix_out = run_cmd(
+                [ffmpeg_bin(), "-hide_banner", "-nostdin", "-i", str(path), "-stream_loop", "-1",
+                 "-i", str(bed), "-filter_complex",
+                 mix_graph(chain2, args.music_db, f",{loudnorm_filter(target, tp)}:print_format=json"),
+                 "-map", "[a]", "-f", "null", "-"], dry_run=args.dry_run, timeout=3600)
+            mix_measured = {} if args.dry_run else parse_loudnorm(mix_out)
+            graph = mix_graph(chain2, args.music_db,
+                              f",{loudnorm_filter(target, tp, mix_measured)}" if mix_measured else "")
             cmd = [ffmpeg_bin(), "-hide_banner", "-nostdin", "-y", "-i", str(path), "-stream_loop", "-1",
-                   "-i", str(bed),                    "-filter_complex", graph, "-map", "0:v?", "-map", "[a]",
+                   "-i", str(bed), "-filter_complex", graph, "-map", "0:v?", "-map", "[a]",
                    "-c:v", "copy", "-c:a", "pcm_s24le", "-ar", "48000",
                    "-shortest", str(out_path)]
         else:

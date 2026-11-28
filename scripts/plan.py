@@ -48,6 +48,14 @@ PLAYBOOKS = {
                      "clip_len": [20, 90], "clip_count": 4},
 }
 
+# Motion a playbook earns: short-form gets a live camera, long-form talks stay still.
+MOTION_BY_PLAYBOOK = {
+    "reel": "ken-burns", "ad": "zoom-in", "vlog": "ken-burns", "presenter": "ken-burns",
+    "music": "ken-burns", "wedding": "ken-burns", "clip-stream": "zoom-in",
+}
+# Long-form earns fewer, spaced inserts rather than none: 3 is a starting point, not a ceiling.
+BROLL_BY_PLAYBOOK = {"reel": 2, "ad": 2, "vlog": 2, "presenter": 2, "youtube": 3, "tutorial": 3}
+
 ASPECT_SIZE = {
     "9:16": (1080, 1920),
     "16:9": (1920, 1080),
@@ -112,6 +120,11 @@ def build_plan(probe: dict, answers: dict, playbook: str, caps: dict, device: st
     duration = float(probe.get("duration") or 0)
     target_dur = min(duration, float(pb["max_duration"])) if duration else float(pb["max_duration"])
     effects = answers.get("effects", "auto")
+    caption_style = answers.get("caption_style") if answers.get("caption_style") not in (None, "none") \
+        else pb["caption"]
+    broll_answer = str(answers.get("broll") or "auto")
+    broll_count = 0 if broll_answer == "none" else (
+        int(broll_answer) if broll_answer.isdigit() else BROLL_BY_PLAYBOOK.get(playbook, 0))
     quick = probe.get("quick") or {}
     features = {
         "chroma": effects == "chroma" or (effects == "auto" and bool(quick.get("green_screen"))),
@@ -143,10 +156,10 @@ def build_plan(probe: dict, answers: dict, playbook: str, caps: dict, device: st
         "captions": {
             "enabled": lang != "none",
             "lang": lang,
-            "style": answers.get("caption_style") if answers.get("caption_style") not in (None, "none")
-            else pb["caption"],
+            "style": caption_style,
+            "position": "middle" if caption_style == "kinetic" else "bottom",
             "max_chars": 32,
-            "words_per_line": [2, 4],
+            "words_per_line": [1, 1] if caption_style == "kinetic" else [2, 4],
             "karaoke": answers.get("caption_style") == "karaoke",
             "safe_zone": {"bottom_pct": 18 if aspect == "9:16" else 8, "top_pct": 8},
         },
@@ -168,6 +181,12 @@ def build_plan(probe: dict, answers: dict, playbook: str, caps: dict, device: st
             "target_shot_len": pb["shot_len"],
             "fade_ms": 30,
         },
+        "motion": {
+            "preset": answers.get("motion") or MOTION_BY_PLAYBOOK.get(playbook, "none"),
+            "amount": float(answers.get("motion_amount") or 1.16),
+        },
+        "broll": {"count": broll_count, "query": answers.get("broll_query") or None},
+        "assets": {"background": None, "broll": [], "overlays": [], "subtitles": None},
         "effects": features,
         "layout": pb["layout"],
         "gates": {
@@ -190,6 +209,28 @@ def build_plan(probe: dict, answers: dict, playbook: str, caps: dict, device: st
 
 def plan_job_is_clip(answers: dict) -> bool:
     return answers.get("job") == "clip"
+
+
+def load_assets(root) -> dict:
+    path = work_dir(root, "assets") / "assets.json"
+    return read_json(path, {}) if path.is_file() else {}
+
+
+def apply_assets(plan: dict, assets: dict) -> dict:
+    """A scanned shoot folder supplies the bed, the backdrop, the inserts and the subs."""
+    roles = (assets or {}).get("roles") or {}
+    if roles.get("music"):
+        plan["audio"].update({"music": roles["music"], "music_bed": True})
+    if roles.get("background"):
+        plan["assets"]["background"] = roles["background"]
+        if plan["output"]["aspect"] != plan.get("source_aspect"):
+            plan["layout"] = "backdrop"  # padded frame gets the supplied art, not black
+    for key in ("broll", "overlays"):
+        if roles.get(key):
+            plan["assets"][key] = list(roles[key])
+    if roles.get("subtitles"):
+        plan["assets"]["subtitles"] = roles["subtitles"]
+    return plan
 
 
 def main(argv=None) -> int:
@@ -238,9 +279,13 @@ def main(argv=None) -> int:
         answers.setdefault("audio", "clean")
         answers.setdefault("effects", "auto")
         answers.setdefault("aspect", "9:16")
+        answers.setdefault("motion", None)
+        answers.setdefault("broll", "auto")
+        answers.setdefault("broll_query", None)
 
         playbook = auto_playbook(probe, answers)
         plan = build_plan(probe, answers, playbook, caps, device)
+        plan = apply_assets(plan, load_assets(root))
         if args.style:
             plan = apply_style(plan, load_style(root, args.style))
 

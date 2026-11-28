@@ -33,8 +33,9 @@ No backend → `pip install --user faster-whisper`. PyAV 19 removed the
 install can die with `open() got an unexpected keyword argument
 'metadata_errors'`; `asr.py` drops that kwarg at runtime (the upstream fix),
 and `pip install "av<19"` is the other way out. Model download blocked →
-pre-download once, set `VFE_WHISPER_MODEL`. Hindi on noisy field audio: `medium`
-is much better than `small` (`VFE_WHISPER_MODEL=medium`). CUDA OOM → the script
+pre-download once (`ensure.py --models`, which fetches `medium`). Hindi on noisy
+field audio: `medium` is the default for exactly this reason; `--model small`
+trades accuracy for speed (3/5 → 1/5 proper nouns on the reference clip). CUDA OOM → the script
 retries once on CPU int8. Empty transcript → the source is silent; check
 `probe.py --loudness`.
 
