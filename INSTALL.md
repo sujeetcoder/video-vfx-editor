@@ -126,10 +126,10 @@ agent folders after updating, and restart the agent so it reloads `SKILL.md`.
 |---|---|---|
 | A. Agent reads this file | "Install github.com/sujeetcoder/video-vfx-editor, read INSTALL.md and follow it" | yes (this file) |
 | B. Paste/upload | copy `install/agent-paste.md` into a skills UI (Freebuff) | yes (file generated) |
-| C. skills CLI | `npx skills add sujeetcoder/video-vfx-editor -a claude-code -a codex -a opencode -g` | not run (needs the published repo) |
+| C. skills CLI | `npx -y skills add sujeetcoder/video-vfx-editor -a claude-code -g -y` | yes: all 130 files copied to `~/.claude/skills/video-vfx-editor`; **`-y` is required** — without it the prompt blocks a non-interactive shell and the command exits 0 having installed nothing |
 | D. Plugin marketplace | `/plugin marketplace add sujeetcoder/video-vfx-editor` then `/plugin install video-vfx-editor@video-vfx-editor` | not run |
 | E. Manual | `git clone` then `python install/setup.py --agent all` | yes |
-| F. OpenCode | `npx skills add ... -a opencode -g`, or copy to `.opencode/skills/video-vfx-editor` | not run |
+| F. OpenCode | `npx -y skills add ... -a opencode -g -y`, or copy to `.opencode/skills/video-vfx-editor` | not run (the CLI itself is exercised by route C) |
 
 Mark honestly in your report which routes you exercised. Do not claim "works"
 for a route you did not run.

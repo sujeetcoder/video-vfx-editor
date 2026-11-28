@@ -30,7 +30,13 @@ hand-editing the installed folder.
   `0.1.4 -> 0.1.5` and exits 2; `--apply` rewrites 3 files (127 unchanged)
   and the copy lands on 0.1.5 with its `edit/` work intact.
 - Git mode on a clone one commit behind its origin: `--apply` fetches and
-  fast-forwards to the new head.
+  fast-forwards to the new head; with a dirty tree it refuses (exit 3) and gives
+  the fix instead of overwriting.
+- **Route C** (`npx -y skills add sujeetcoder/video-vfx-editor -a claude-code -g -y`):
+  copies all **130 tracked files** to `~/.claude/skills/video-vfx-editor`
+  (667 KB, no `.git`, version 0.1.5), and that copy's own `update.py --check`
+  reports up to date. Without `-y` the prompt stalls a non-interactive shell and
+  the CLI exits 0 having installed nothing — `-y` is part of the command now.
 
 ## 0.1.4 — 2026-11-27
 
