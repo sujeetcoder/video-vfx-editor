@@ -281,12 +281,12 @@ def main(argv=None) -> int:
             target = f"{start_version} -> {latest or head[:7]}"
 
         run.add_check("remote", "pass", f"{repo}@{branch}", head[:7])
-        run.add_check("up-to-date", "warn" if behind else "pass",
-                      f"behind {head[:7]}" if behind else start_version, target)
 
         if not behind:
+            run.add_check("up-to-date", "pass", start_version, target)
             run.output = f"already up to date ({start_version})"
         elif not args.apply or args.dry_run:
+            run.add_check("up-to-date", "warn", f"behind {head[:7]}", target)
             for line in changes[:10]:
                 log(line)
             run.output = f"update available: {target} ({len(changes)} changes)"
@@ -310,8 +310,9 @@ def main(argv=None) -> int:
         if args.apply and not args.dry_run and behind:
             if not args.no_verify:
                 report = doctor_summary()
-                run.add_check("doctor", "fail" if report["fails"] else
-                              ("warn" if report["warns"] else "pass"),
+                if report["warns"]:
+                    log("doctor warns, optional only: " + ", ".join(report["warns"]))
+                run.add_check("doctor", "fail" if report["fails"] else "pass",
                               f"{len(report['fails'])} FAIL / {len(report['warns'])} WARN", "0 FAIL")
             if args.agent:
                 code = relink(args.agent, args.global_scope)
