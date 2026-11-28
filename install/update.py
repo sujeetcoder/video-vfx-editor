@@ -123,9 +123,19 @@ def git_state() -> dict:
     }
 
 
+def github_slug(url: str) -> str:
+    match = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", url.strip())
+    return match.group(1).lower() if match else ""
+
+
 def tracks(repo: str, origin_url: str) -> bool:
-    slug = re.sub(r"^.*github\.com[:/]", "", origin_url.strip()).removesuffix(".git")
-    return slug.lower() == repo.lower()
+    """True when this checkout's origin is the repo we were asked to follow.
+
+    A non-GitHub origin (local mirror, GitLab) is accepted as-is: updating a
+    checkout from the remote it was cloned from is what the user asked for.
+    """
+    slug = github_slug(origin_url)
+    return not slug or slug == repo.lower()
 
 
 # --------------------------------------------------------------------------

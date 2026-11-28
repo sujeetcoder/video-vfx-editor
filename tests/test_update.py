@@ -27,6 +27,9 @@ def test_tracks_only_the_matching_origin():
     assert update.tracks("sujeetcoder/video-vfx-editor",
                          "git@github.com:sujeetcoder/video-vfx-editor.git")
     assert not update.tracks("sujeetcoder/other", "https://github.com/sujeetcoder/video-vfx-editor.git")
+    # a non-GitHub origin (local mirror) is followed as-is
+    assert update.tracks("sujeetcoder/video-vfx-editor", "D:/mirrors/vfe.git")
+    assert update.github_slug("https://github.com/a/b.git") == "a/b"
 
 
 def test_sync_tree_updates_creates_and_reports_leftovers(tmp_path):

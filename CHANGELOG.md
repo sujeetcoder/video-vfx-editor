@@ -26,9 +26,11 @@ hand-editing the installed folder.
 - `doctor.py`: **17 PASS, 0 FAIL**, only the optional RVM-model and CPU WARNs.
 - **63 tests pass** (59 before), pyflakes clean, `agent-paste.md` regenerated.
 - `--check` on this checkout: `already up to date (0.1.5)`, exit 0.
-- Copy mode on a stale tree (`c9b3895`, no `.git`): check reports the update and
-  exits 2, apply reports the changed files and lands on 0.1.5.
-- Git mode on a stale clone: fetch + `--ff-only` moves it to the new head.
+- Copy mode on a **0.1.4 copy without `.git`**: `--check` reports
+  `0.1.4 -> 0.1.5` and exits 2; `--apply` rewrites 3 files (127 unchanged)
+  and the copy lands on 0.1.5 with its `edit/` work intact.
+- Git mode on a clone one commit behind its origin: `--apply` fetches and
+  fast-forwards to the new head.
 
 ## 0.1.4 — 2026-11-27
 
