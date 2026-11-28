@@ -1,5 +1,88 @@
 # Changelog
 
+## 0.1.6 — 2026-11-28
+
+Real-media re-verification at 0.1.5, then the simplification review. Same
+Wikimedia Hindi interview as 0.1.2 (53.803 s, 1920×1080@25, vorbis 48 kHz), with
+the models already on disk: faster-whisper `small`, rembg u2net, puppeteer
+Chrome. Nothing was re-downloaded except the clip itself (the earlier work
+directory had been cleaned).
+
+### Measured (project `~/.vfe/proj-v15c`, `forge.py run`, defaults + `reel` preset)
+
+| Stage | Result |
+|---|---|
+| ingest → probe | 4.6 s combined; 1080p25, no VFR/HDR, audio 2ch/48k |
+| intake / plan | `reel`, hi, 9:16, bold-pop, tight, clean audio; 1080×1920 @30 |
+| cut | 37 s; no silence ≥ 0.45 s, 53.8 s kept as one segment |
+| asr | 50 s; faster-whisper 1.2.1, `small`, CPU int8, lang `hi`, **122 words / 11 segments**, 1.01–52.87 s, mean word prob 0.617, all Devanagari |
+| caption | 34 s; **40 lines**, 8–25 chars, 3.05 words/line, 97 % of the spoken span captioned |
+| audio | 11 s; PCM 24-bit/48 k intermediate, one AAC encode |
+| export | 73 s; 1080×1920, 30 fps, 53.80 s, 42.2 MB, 6 278 kbps, AAC 48 kHz |
+| check | 14 s; **10/10 gates pass** |
+| total | 223 s for the whole forged run |
+
+Gate values: duration 53.8 s, resolution 1080×1920, fps 30.0, audio 1 stream,
+loudness **−14.5 LUFS** (target −14±1), true peak **−1.7 dBTP** (≤ −1), black
+runs 0, freezes 0, caption max 25 chars (≤ 32), caption tail 52.87 s (inside
+the video).
+
+Captions are transcribed, not written: `words.json` carries the SHA-1 of the
+WAV extracted from the clip's own audio, and all 40 caption lines start inside
+detected speech (median and minimum overlap with `silencedetect` speech regions
+= **1.000**, 0/40 starting in silence). The burn is in the pixels: comparing the
+captioned file against the pre-burn cut at 12 timestamps shows 4 816–14 048
+changed pixels (max diff 242–255) in the caption band every time.
+
+Matte: rembg u2net, 42 masks at 480 px over a 10 s excerpt, 44.5 s, white and
+black previews written. Motion: `kinetic-hook`, energy 0.69 (> 0.5), 6-char
+text, no overflow, 14 s.
+
+### Fixed by running it
+
+- **Whisper looped on Hindi at `small`**: one segment repeated a token until it
+  became a 113-character "word", which shipped as a 134-char caption line.
+  `asr.py` now passes `no_repeat_ngram_size=3` + `repetition_penalty=1.1`:
+  the same clip went from **50 words** (mean prob 0.632) to **122 words** with a
+  9-char longest token; ASR costs ~35 s more (47 → 82 s standalone).
+- **`check.py` never measured captions on a forged edit**: it looked for the SRT
+  beside the *render*, while `caption.py` writes it beside the *cut*, so both
+  caption gates silently disappeared — the 0.1.5 run reported 8 checks, all
+  passing, with a 134-char line in the file. It now finds the sidecar through
+  the state artifacts and reports `captions_missing` instead of skipping.
+- **`caption.py` had no guard for one over-long token**: `chunk_words()` now
+  splits any token wider than the budget, so the ≤32-char gate holds even when
+  the recogniser produces garbage. Covered by a test.
+
+### Cut
+
+- `install/update.py`: dropped `commits_between()` (an extra GitHub compare call
+  whose failure was swallowed, feeding only a cosmetic count), the second value
+  of `apply_git()`'s tuple (never used), and `doctor_summary()`'s unused `exit`.
+- `scripts/forge.py`: unreachable duplicate `plan` branch.
+- `scripts/intake.py`: unused `json_mode` parameter on `_ask()`.
+- Unused helpers: `_contract.emit_json`, `_paths.input_key`, `reframe._lerp`,
+  `sheet.sheet_filter`, and the `math` import left behind in `sheet.py`.
+- `INSTALL.md` §5 points at `SKILL.md` §11 for update behaviour instead of
+  repeating it a second time.
+- Kept deliberately: `update.py --check` (documented name for the default
+  read-only mode), `--no-verify`, and the 8-line HTTPS helpers duplicated between
+  `ensure.py` and `update.py` — a shared module for them would add a file to
+  save nothing.
+
+### Verified after the cuts
+
+- `doctor.py`: 17 PASS, 0 FAIL (optional RVM/GPU WARNs only).
+- **64 tests pass**, pyflakes clean, `agent-paste.md` current.
+- Full forged pipeline re-run on the edited tree: **10/10 gates**, same numbers.
+
+### Known limits
+
+Hindi accuracy at `small` is still visibly wrong on proper nouns
+("मेरा नां लखम्लाल, अगर्याल जाती बैगा…" for *मेरा नाम लखनलाल, अगिर्याल जाति बैगा*).
+`medium` was materially better in 0.1.2 (129 words) but is not cached here, so it
+was not re-downloaded.
+
 ## 0.1.5 — 2026-11-28
 
 Update path: an installed copy can now follow the repository. Tell an agent

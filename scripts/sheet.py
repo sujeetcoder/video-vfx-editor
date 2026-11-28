@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import argparse
-import math
 import sys
 from pathlib import Path
 
@@ -16,11 +15,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _contract import add_common, stage  # noqa: E402
 from _paths import (ensure_edit, expand_inputs, ffmpeg_bin, ffprobe_json, project_root,  # noqa: E402
                     record_stage, run_cmd, work_dir)
-
-
-def sheet_filter(frames: int = 9, cols: int = 3) -> str:
-    rows = math.ceil(frames / cols)
-    return f"select='not(mod(n\\,{max(frames, 1)}))',scale=320:-1,tile={cols}x{rows}"
 
 
 def main(argv=None) -> int:

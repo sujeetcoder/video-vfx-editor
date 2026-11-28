@@ -347,12 +347,6 @@ def sha1_file(path, chunk: int = 1 << 20) -> str:
     return h.hexdigest()
 
 
-def input_key(path) -> str:
-    p = Path(path)
-    st = p.stat()
-    return sha1_text(f"{p.resolve()}|{st.st_size}|{int(st.st_mtime)}")[:8]
-
-
 # --------------------------------------------------------------------------
 # inputs
 # --------------------------------------------------------------------------

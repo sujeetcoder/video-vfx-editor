@@ -84,17 +84,6 @@ def remote_version(repo: str, branch: str) -> str | None:
     return parse_version(_get(f"{RAW}/{repo}/{branch}/SKILL.md").decode("utf-8", "replace"))
 
 
-def commits_between(repo: str, base: str, head: str) -> list[str]:
-    """Subjects of base..head, best effort — the answer is already known."""
-    try:
-        data = _json(f"{API}/{repo}/compare/{base}...{head}")
-        rows = [f"{c['sha'][:7]} {c['commit']['message'].splitlines()[0]}"
-                for c in data.get("commits", [])]
-        return rows[-20:]
-    except Exception:  # noqa: BLE001 - cosmetic detail only
-        return []
-
-
 # --------------------------------------------------------------------------
 # local state
 # --------------------------------------------------------------------------
@@ -204,10 +193,8 @@ def run_json(path: Path, *args: str) -> tuple[int, dict]:
 
 
 def doctor_summary() -> dict:
-    code, env = run_json(ROOT / "install" / "doctor.py", "--json")
-    checks = env.get("checks", [])
-    return {"exit": code,
-            "fails": [c["id"] for c in checks if c["status"] == "fail"],
+    checks = run_json(ROOT / "install" / "doctor.py", "--json")[1].get("checks", [])
+    return {"fails": [c["id"] for c in checks if c["status"] == "fail"],
             "warns": [c["id"] for c in checks if c["status"] == "warn"]}
 
 
@@ -232,7 +219,7 @@ def check_remote(repo: str, branch: str, as_git: bool) -> str:
     return head
 
 
-def apply_git(branch: str, state: dict, run) -> tuple[str, int]:
+def apply_git(branch: str, state: dict, run) -> str:
     if state.get("dirty"):
         raise SkillError("working tree has local changes; refusing to overwrite them",
                          fix=f"commit or stash inside {ROOT}, then re-run "
@@ -248,7 +235,7 @@ def apply_git(branch: str, state: dict, run) -> tuple[str, int]:
     after = _git("rev-parse", "HEAD").stdout.strip()
     ahead = int(_git("rev-list", "--count", f"{before}..{after}").stdout.strip() or 0)
     run.add_check("applied", "pass", f"{before[:7]}..{after[:7]}", "fast-forward")
-    return f"{before[:7]} -> {after[:7]} ({ahead} commits)", ahead
+    return f"{before[:7]} -> {after[:7]} ({ahead} commits)"
 
 
 def main(argv=None) -> int:
@@ -272,12 +259,10 @@ def main(argv=None) -> int:
         head = check_remote(repo, branch, as_git)
         if as_git:
             behind = head != state["sha"]
-            changes = commits_between(repo, state["sha"], head) if behind else []
             target = f"{start_version} -> {head[:7]}"
         else:
             latest = remote_version(repo, branch)
             behind = bool(latest and latest != start_version)
-            changes = [f"version {start_version} -> {latest}"] if behind else []
             target = f"{start_version} -> {latest or head[:7]}"
 
         run.add_check("remote", "pass", f"{repo}@{branch}", head[:7])
@@ -287,12 +272,10 @@ def main(argv=None) -> int:
             run.output = f"already up to date ({start_version})"
         elif not args.apply or args.dry_run:
             run.add_check("up-to-date", "warn", f"behind {head[:7]}", target)
-            for line in changes[:10]:
-                log(line)
-            run.output = f"update available: {target} ({len(changes)} changes)"
+            run.output = f"update available: {target}"
             run.next_cmd = None if args.dry_run else "python install/update.py --apply --json"
         elif as_git:
-            summary, _ = apply_git(branch, state, run)
+            summary = apply_git(branch, state, run)
             new_version = local_version()
             run.output = f"{new_version} — {summary}"
             if start_version != new_version:

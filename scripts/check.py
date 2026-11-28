@@ -99,6 +99,10 @@ def evaluate(info: dict, loud: dict, black: list, freeze: list, caption_report: 
         add("caption_tail", caption_report.get("last_end", 0) <= info.get("duration", 0) + 0.05,
             caption_report.get("last_end"), "inside the video",
             "the last caption outlives the video; re-run caption.py on the cut")
+    elif (plan.get("captions") or {}).get("lang", "none") not in ("none", None):
+        # Captions were planned and cannot be found: report it, never skip quietly.
+        add("captions_missing", False, "no srt", "captions verifiable",
+            "run caption.py on the cut so check.py has captions to measure")
     if sidecar.get("clip"):
         clip = sidecar["clip"]
         add("clip_hook", float(clip.get("hook_offset", 99)) <= float(gates["hook_within"]),
@@ -122,6 +126,15 @@ def evaluate(info: dict, loud: dict, black: list, freeze: list, caption_report: 
                 f"{expected}±{rhythm.get('tolerance', 0.8)} cuts/10s",
                 f"style '{style_name}' expects a different cut rhythm")
     return checks
+
+
+def find_captions(path: Path, state: dict) -> Path | None:
+    """The SRT sits beside the file caption.py captioned, not the render."""
+    candidates = [path.with_suffix(".srt")]
+    for artifact in (state.get("artifacts") or {}).values():
+        side = Path(artifact)
+        candidates += [side.with_suffix(".srt"), side.parent / (side.stem + ".srt")]
+    return next((c for c in candidates if c.is_file()), None)
 
 
 def caption_report(path: Path) -> dict:
@@ -187,7 +200,7 @@ def main(argv=None) -> int:
                              "true_peak_db": float(peak.group(1)) if peak else None},
                 "black": parse_blackdetect(black_out),
                 "freeze": parse_freezedetect(freeze_out),
-                "caption_report": caption_report(p),
+                "caption_report": caption_report(find_captions(p, state) or p),
                 "sidecar": sidecar,
             }
             checks = evaluate(result, result["loudness"], result["black"], result["freeze"],

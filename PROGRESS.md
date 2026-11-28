@@ -1,12 +1,13 @@
 # PROGRESS
 
-Last update: 2026-11-27 (v0.1.4, installer simplified and re-verified; no pipeline changes)
+Last update: 2026-11-28 (v0.1.6, real-media re-run on the pushed head + review)
 
 ## Real-media run (this machine)
 
 Source: Wikimedia Commons Hindi talking-head interview
 ("Interview of a Baiga tribe named Lakhan Lal in Hindi Language"), 53.803 s,
-1920×1080 @25, vorbis 48 kHz. Project: `~/.vfe/proj-real` via `forge.py`.
+1920×1080 @25, vorbis 48 kHz. Project: `~/.vfe/proj-v15c` via `forge.py`,
+models already on disk (faster-whisper `small`, rembg u2net, puppeteer Chrome).
 
 ```
 python -m compileall -q scripts install evals      → OK
@@ -15,17 +16,23 @@ python -m pytest -q                                → 59 passed
 python install/build_paste.py --check              → current
 ```
 
-| Step | Measured |
+| Step | Measured (v0.1.6 run) |
 |---|---|
 | probe | 1080p25, no VFR, no HDR, audio 2ch/48k |
-| cut | no silence ≥ 0.45 s; 53.8 s kept as one segment |
-| asr | faster-whisper medium, CPU int8, **129 Devanagari words** from real speech |
-| caption | 45 lines burned, 97 px at 1080×1920, safe zone pass |
+| cut | 37 s; no silence ≥ 0.45 s; 53.8 s kept as one segment |
+| asr | 50 s; faster-whisper `small`, CPU int8, **122 Devanagari words / 11 segments**, 1.01–52.87 s, mean prob 0.617 |
+| caption | 34 s; **40 lines**, 8–25 chars, 3.05 words/line, 97 % of speech captioned, 0/40 lines start in silence |
 | audio | PCM intermediate → single AAC encode, −14.5 LUFS, −1.7 dBTP |
-| export | 1080×1920, 30 fps, libx264, 41 MiB |
-| gates | **8/8 pass** (duration, resolution, fps, audio, loudness, true peak, black, freeze) |
-| matte | rembg u2net, 54 masks @480 px, white/black previews correct |
-| motion | `kinetic-hook`, 90 frames, energy 1.78, 11-char text |
+| export | 73 s; 1080×1920, 30 fps, libx264, 42.2 MB, 6 278 kbps |
+| gates | **10/10 pass** (duration, resolution, fps, audio, loudness, true peak, black, freeze, captions, caption tail) |
+| burn proof | 12/12 sampled times show 4 816–14 048 changed pixels in the caption band |
+| matte | rembg u2net, 42 masks @480 px on a 10 s excerpt, 44.5 s, white/black previews |
+| motion | `kinetic-hook`, energy 0.69, 6-char text, no overflow, 14 s |
+| total | 223 s for the full forged run |
+
+Hindi accuracy at `small` is the weak link: proper nouns come out wrong
+("मेरा नां लखम्लाल, अगर्याल जाती बैगा…"). `medium` (0.1.2, 129 words) is the
+accurate choice and needs a one-time model download.
 
 ## Bugs found by running (all fixed)
 
@@ -76,7 +83,7 @@ openai-whisper backends, install routes C/D/F.
 ## Next
 
 ```bash
-export VFE_WHISPER_MODEL=medium
+export VFE_WHISPER_MODEL=medium   # one-time ~1.5 GB download; Hindi proper nouns
 python scripts/forge.py init "<talking-head.mp4>" --job edit --json
 python scripts/forge.py run --json
 ```

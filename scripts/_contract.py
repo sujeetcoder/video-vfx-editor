@@ -242,7 +242,3 @@ def need(value, message: str, fix: str | None = None):
         raise InvalidInput(message, fix=fix)
     return value
 
-
-def emit_json(obj: dict) -> None:
-    sys.stdout.write(json.dumps(_stringify(obj), ensure_ascii=False) + "\n")
-    sys.stdout.flush()

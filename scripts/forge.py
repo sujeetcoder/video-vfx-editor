@@ -67,8 +67,6 @@ def stage_command(state: dict, name: str, root: Path) -> str:
         return f'{base} "{art.get("caption") or art.get("cut") or art.get("ingest", src)}"'
     if name == "export":
         return f'{base} "{art.get("audio") or art.get("cut") or art.get("ingest", src)}"'
-    if name == "plan" and state.get("job") == "clip":
-        return f'{base} "{art.get("probe", "")}"'
     if name == "clips":
         return f'{base} --from-plan'
     if name == "check":

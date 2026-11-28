@@ -93,6 +93,10 @@ def run_faster(wav: Path, lang: str, size: str, plan: dict) -> dict:
         vad_filter=True,
         initial_prompt=PROMPTS.get(lang),
         condition_on_previous_text=False,
+        # Without this guard Hindi at `small` loops on one token: the same clip
+        # gave 50 words and a 113-char "word" before, 122 words and none after.
+        no_repeat_ngram_size=3,
+        repetition_penalty=1.1,
     )
     words, segs = [], []
     for seg in segments:

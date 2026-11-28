@@ -248,7 +248,7 @@ def main(argv=None) -> int:
             answers = merge_answers(answers, {key.strip(): value.strip()})
 
         if args.ask and not args.json:
-            answers = _ask(questions=QUESTIONS, answers=answers, json_mode=False)
+            answers = _ask(questions=QUESTIONS, answers=answers)
         elif args.json and not existing and not args.preset:
             # The agent asks in chat; we return the bank + detected defaults.
             run.ok(output=None, artifacts=[],
@@ -278,7 +278,7 @@ def main(argv=None) -> int:
     return 0
 
 
-def _ask(questions, answers, json_mode=False) -> dict:
+def _ask(questions, answers) -> dict:
     print(question_block(questions, answers))
     raw = input("answers (numbers separated by space, or 'ok'): ").strip().lower()
     if raw in ("", "ok", "yes"):

@@ -56,7 +56,28 @@ def chunk_words(words, max_chars: int = 32, min_words: int = 2, max_words: int =
             fixed[-1].extend(line)
         else:
             fixed.append(line)
-    return fixed
+    return split_overlong(fixed, max_chars)
+
+
+def split_overlong(lines, max_chars: int) -> list:
+    """Split any single token wider than the budget into its own pieces.
+
+    A recogniser loop can emit one "word" of 100+ characters, which would sail
+    past every length gate as a one-word line.
+    """
+    out = []
+    for line in lines:
+        if all(len(w["w"]) <= max_chars for w in line):
+            out.append(line)
+            continue
+        for w in line:
+            token = w["w"]
+            if len(token) <= max_chars:
+                out.append([w])
+            else:
+                out.extend([dict(w, w=token[i:i + max_chars])]
+                           for i in range(0, len(token), max_chars))
+    return out
 
 
 def srt_ts(seconds: float) -> str:

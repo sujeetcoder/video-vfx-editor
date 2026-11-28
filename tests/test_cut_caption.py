@@ -72,6 +72,13 @@ def test_chunk_words_merges_orphan():
     assert all(len(line) >= 2 for line in lines)
 
 
+def test_chunk_words_splits_a_looped_token():
+    token = "गें" * 40
+    lines = chunk_words(words((token, 0.0, 5.0)), max_chars=17, min_words=2, max_words=4)
+    assert all(len(w["w"]) <= 17 for line in lines for w in line)
+    assert "".join(w["w"] for line in lines for w in line) == token
+
+
 def test_timestamps():
     assert srt_ts(0) == "00:00:00,000"
     assert srt_ts(3661.5) == "01:01:01,500"

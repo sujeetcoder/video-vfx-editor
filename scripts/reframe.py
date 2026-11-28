@@ -66,10 +66,6 @@ def keyframes_from_faces(faces, fps: float, src_w: int, src_h: int, out_aspect: 
     return kfs
 
 
-def _lerp(a, b, f):
-    return a + (b - a) * max(0.0, min(1.0, f))
-
-
 def build_crop_expression(kfs, src_w: int, src_h: int, out_w: int, out_h: int, zoom_max: float = 1.25) -> dict:
     """Return {w,h,x,y} ffmpeg expressions for a constant-size moving crop."""
     if not kfs:

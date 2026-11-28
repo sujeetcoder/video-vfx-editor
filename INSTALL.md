@@ -113,12 +113,10 @@ python install/update.py --check --json    # read-only; exit 2 = newer commit
 python install/update.py --apply --json    # update this folder, then doctor
 ```
 
-A git checkout fast-forwards (`git fetch` + `git merge --ff-only`); a plain copy
-from a paste or tarball install is refreshed with the branch tarball, and every
-changed file is reported. `edit/`, `.git`, models, node_modules and `~/.vfe` are
-untouched; files deleted upstream are listed as `leftover`, never removed. A
-dirty checkout is refused with a fix. Add `--agent all --global` to re-link the
-agent folders after updating, and restart the agent so it reloads `SKILL.md`.
+`edit/` work, `.git`, models and `~/.vfe` are never touched, a dirty checkout is
+refused, and upstream deletions are reported as `leftover` rather than removed.
+Add `--agent all --global` to re-link the agent folders. `SKILL.md` §11 is the
+canonical description; restart the agent so it reloads `SKILL.md`.
 
 ## 6. The six install routes
 
