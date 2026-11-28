@@ -15,7 +15,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from _caps import capabilities, fonts_dir, resolve_device  # noqa: E402
+from _caps import (capabilities, fonts_dir, python_supported,  # noqa: E402
+                   resolve_device, venv_python)
 from _contract import add_common, stage  # noqa: E402
 
 FIX = {
@@ -52,8 +53,7 @@ def build_report(caps: dict) -> list:
     add("ffmpeg:zscale", ff["has_zscale"], "zscale filter", "present", FIX["zscale"], required=False)
     add("ffprobe", caps["ffprobe"]["present"], caps["ffprobe"]["path"] or "missing", "on PATH", FIX["ffprobe"])
     py = caps["python"]
-    supported = (3, 11) <= sys.version_info[:2] < (3, 14)
-    add("python", py["ok"] and supported, py["version"], "3.11-3.13 (3.12.16 pinned)", FIX["python"])
+    add("python", py["ok"] and python_supported(), py["version"], "3.11-3.13 (3.12.16 pinned)", FIX["python"])
     node = caps["node"]
     add("node", node["ok"], node["version"] or "missing", ">= 20 (22 preferred)", FIX["node"], required=False)
     add("npm", caps["npm"]["present"], caps["npm"]["path"] or "missing", "on PATH", FIX["npm"], required=False)
@@ -80,31 +80,23 @@ def build_report(caps: dict) -> list:
     return checks
 
 
-def _provisioned_python() -> Path:
-    name = "Scripts/python.exe" if sys.platform.startswith("win") else "bin/python"
-    return Path.home() / ".vfe" / "venv" / name
-
-
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Report video-vfx-editor capabilities and fixes")
     add_common(parser)
     args = parser.parse_args(argv)
     # Report the runtime the installer provisioned, not the OS default.
-    supported = (3, 11) <= sys.version_info[:2] < (3, 14)
-    venv = _provisioned_python()
-    if not supported and venv.is_file() and os.environ.get("VFE_BOOTSTRAPPED") != "1":
+    if not python_supported() and venv_python().is_file() and os.environ.get("VFE_BOOTSTRAPPED") != "1":
         env = dict(os.environ, VFE_BOOTSTRAPPED="1")
-        return subprocess.run([str(venv), str(Path(__file__).resolve()), *sys.argv[1:]], env=env).returncode
+        return subprocess.run([str(venv_python()), str(Path(__file__).resolve()), *sys.argv[1:]],
+                              env=env).returncode
     with stage("doctor", args) as run:
-        caps = capabilities(ROOT, refresh=args.refresh)
+        caps = capabilities()
         checks = build_report(caps)
         for c in checks:
             run.add_check(c["id"], c["status"], c["value"], c["target"])
         run.device = resolve_device(args.device, caps)
         run.output = str(fonts_dir(ROOT))
-        if args.json:
-            run.next_cmd = "python install/ensure.py --check --json"
-        else:
+        if not args.json:
             print(f"video-vfx-editor doctor — {caps['platform']} / python {caps['python']['version']} / device {run.device}")
             print(f"interpreter: {caps['python']['path']}")
             print("-" * 78)

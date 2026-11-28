@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.1.4 — 2026-11-27
+
+Simplification pass over the installer added in 0.1.3. Same capabilities, less
+code: `install/ensure.py`, `install/doctor.py`, the wrappers and
+`scripts/_caps.py` went from **1010 to 913 lines**.
+
+### Removed
+
+- **The capability cache** (`edit/caps.json`, `CAPS_VERSION`, `--refresh`). Every
+  call now probes fresh; the cache caused two of the 0.1.3 bugs (stale FFmpeg,
+  stale yt-dlp) and cost about a second per stage to avoid.
+- **Duplicated version/venv logic**: `os_name()`, `python_supported()` and
+  `venv_python()` existed in three places. They live in `_caps.py` now, and
+  `install/setup.py` imports `os_name()`.
+- **The per-id if-chain in `run_action`**: local steps are handlers in the action
+  dict, system steps keep the consent path. The fake `cmd` strings that existed
+  only for printing are gone, along with the second `cmd` print line.
+- **Redundant doctor work**: the repeated interpreter check,
+  `_provisioned_python()` and the duplicated `next` assignment.
+- **Download scaffolding**: the `min_bytes` parameter and the temp checksum file.
+  The checksum is fetched as text and files are hashed with
+  `hashlib.file_digest`.
+- **Wrapper venv detection**: `doctor.py` already delegates to the provisioned
+  interpreter, so `install.ps1`/`install.sh` no longer look for it.
+- Dead bits: `_models._hint`, a second `fonts_dir()` lookup, an unused `import os`
+  in the model pre-download snippet, and the `probe_all` wrapper (now
+  `capabilities`).
+
+### Verified after the rewrite
+
+- `doctor.py`: same 17 PASS, 0 required failures, optional WARNs only (RVM
+  matte model, CPU-only).
+- `ensure.py --install --yes` into a throwaway `USERPROFILE` prefix: CPython
+  **3.12.16** venv, SHA-256-verified FFmpeg 9.1, rembg + onnxruntime, puppeteer +
+  Chrome; the second run reports **0 missing**.
+- Motion smoke on that prefix (`kinetic-hook`): energy 2.09, no text overflow.
+- **59 tests pass**, pyflakes clean, paste file current.
+
 ## 0.1.3 — 2026-11-27
 
 Install-flow pass on a **cleaned machine**: every user-level artefact from the

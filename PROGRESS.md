@@ -1,6 +1,6 @@
 # PROGRESS
 
-Last update: 2026-11-27 (v0.1.3, clean-machine install re-verified on Windows 11)
+Last update: 2026-11-27 (v0.1.4, installer simplified and re-verified; no pipeline changes)
 
 ## Real-media run (this machine)
 

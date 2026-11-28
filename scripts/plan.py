@@ -203,7 +203,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     root = project_root(args.project)
     state = ensure_edit(root)
-    caps = capabilities(root, refresh=args.refresh)
+    caps = capabilities(root)
     device = device_plan(args.device, caps)["resolved"]
 
     with stage("plan", args) as run:

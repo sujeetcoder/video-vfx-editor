@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from _caps import os_name  # noqa: E402
 from _contract import log  # noqa: E402
 
 AGENT_DIRS = {
@@ -28,14 +29,6 @@ AGENT_DIRS = {
 }
 
 SKIP = {"__pycache__", "edit", "node_modules", ".git", "models", ".pytest_cache"}
-
-
-def os_name() -> str:
-    if sys.platform.startswith("win"):
-        return "windows"
-    if sys.platform == "darwin":
-        return "macos"
-    return "linux"
 
 
 def link_skill(agent: str, global_scope: bool, target_root: Path, copy: bool) -> dict:

@@ -169,7 +169,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     root = project_root(args.project)
     state = ensure_edit(root)
-    caps = capabilities(root, refresh=args.refresh)
+    caps = capabilities(root)
     dev = device_plan(args.device, caps)
 
     with stage("chroma", args) as run:

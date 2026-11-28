@@ -8,7 +8,5 @@ if [ -z "$py" ]; then
 fi
 "$py" "$here/ensure.py" "$@"
 status=$?
-doctor_py="$HOME/.vfe/venv/bin/python"
-[ -x "$doctor_py" ] || doctor_py="$py"
-"$doctor_py" "$here/doctor.py" || true
+"$py" "$here/doctor.py" || true
 exit $status

@@ -12,10 +12,27 @@ import subprocess
 import sys
 from pathlib import Path
 
-from _contract import log
-from _paths import edit_dir, local_bin, read_json, repo_root, which, write_json
+from _paths import local_bin, repo_root, which
 
-CAPS_VERSION = 5
+VFE = Path.home() / ".vfe"
+PYTHON_RANGE = ((3, 11), (3, 14))  # wheels exist for numpy/ctranslate2/onnxruntime here
+
+
+def os_name() -> str:
+    if sys.platform.startswith("win"):
+        return "windows"
+    if sys.platform == "darwin":
+        return "macos"
+    return "linux"
+
+
+def python_supported(version=None) -> bool:
+    v = version or sys.version_info
+    return PYTHON_RANGE[0] <= (v[0], v[1]) < PYTHON_RANGE[1]
+
+
+def venv_python() -> Path:
+    return VFE / "venv" / ("Scripts/python.exe" if os_name() == "windows" else "bin/python")
 
 REQUIRED_FILTERS = ("subtitles", "drawtext", "zscale", "loudnorm", "chromakey", "scdet")
 NICE_FILTERS = ("despill", "alphaextract", "sidechaincompress", "afftdn", "arnndn", "freezedetect")
@@ -95,7 +112,7 @@ def _ffmpeg_encoders(ffmpeg: str | None) -> list:
         return encoders
     for line in out.splitlines():
         parts = line.split()
-        if len(parts) >= 2 and parts[0].startswith("V") or (len(parts) >= 2 and parts[0].startswith("A")):
+        if len(parts) >= 2 and parts[0][:1] in ("V", "A"):
             encoders.append(parts[1])
     return encoders
 
@@ -136,14 +153,15 @@ def fonts_dir(root=None) -> Path:
     local = root / "assets" / "fonts"
     if local.is_dir() and any(p.suffix.lower() in (".ttf", ".otf") for p in local.iterdir()):
         return local
-    home = Path.home() / ".vfe" / "fonts"
+    home = VFE / "fonts"
     home.mkdir(parents=True, exist_ok=True)
     return home
 
 
 def _fonts(root) -> dict:
+    target = fonts_dir(root)
     names = []
-    for d in (fonts_dir(root), Path("/usr/share/fonts"), Path.home() / "Library" / "Fonts",
+    for d in (target, Path("/usr/share/fonts"), Path.home() / "Library" / "Fonts",
               Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"):
         if not d or not Path(d).is_dir():
             continue
@@ -153,12 +171,11 @@ def _fonts(root) -> dict:
             continue
     devanagari = any("devanagari" in n.lower() or "mangal" in n.lower() or "nirmala" in n.lower()
                      for n in names)
-    return {"dir": str(fonts_dir(root)), "count": len(names), "devanagari": devanagari}
+    return {"dir": str(target), "count": len(names), "devanagari": devanagari}
 
 
 def _models(root) -> dict:
-    roots = [Path(root) / "models", Path.home() / ".vfe" / "models",
-             Path.home() / ".cache" / "huggingface" / "hub"]
+    roots = [Path(root) / "models", VFE / "models", Path.home() / ".cache" / "huggingface" / "hub"]
     found = []
     for base in roots:
         if not base.is_dir():
@@ -169,7 +186,6 @@ def _models(root) -> dict:
                     found.append(child.name)
         except OSError:
             continue
-    lowered = " ".join(found).lower()
     return {
         "dirs": [str(p) for p in roots],
         "entries": found[:40],
@@ -177,7 +193,6 @@ def _models(root) -> dict:
         "rvm": any("rvm" in n.lower() for n in found),
         "birefnet": any("birefnet" in n.lower() for n in found),
         "sam2": any("sam2" in n.lower() or "sam-2" in n.lower() for n in found),
-        "_hint": lowered[:200],
     }
 
 
@@ -196,7 +211,7 @@ def _chrome() -> str | None:
     return None
 
 
-def probe_all(root=None) -> dict:
+def capabilities(root=None) -> dict:
     root = Path(root or repo_root())
     ffmpeg = os.environ.get("VFE_FFMPEG") or which("ffmpeg") or local_bin("ffmpeg")
     ffprobe = os.environ.get("VFE_FFPROBE") or which("ffprobe") or local_bin("ffprobe")
@@ -212,7 +227,6 @@ def probe_all(root=None) -> dict:
     packages = _python_packages()
     python_ok = sys.version_info >= (3, 11)
     return {
-        "caps_version": CAPS_VERSION,
         "platform": sys.platform,
         "python": {"path": sys.executable, "version": sys.version.split()[0], "ok": python_ok},
         "ffmpeg": {
@@ -287,21 +301,7 @@ def _whisper_backends() -> dict:
     }
 
 
-def capabilities(root=None, refresh: bool = False, cache_write: bool = True) -> dict:
-    """Probe (cached). ``cache_write=False`` keeps read-only callers read-only."""
-    root = Path(root or repo_root())
-    cache = edit_dir(root) / "caps.json"
-    if not refresh and cache.is_file():
-        data = read_json(cache, {})
-        if data.get("caps_version") == CAPS_VERSION:
-            return data
-    data = probe_all(root)
-    if cache_write:
-        try:
-            write_json(cache, data)
-        except OSError as exc:  # read-only project still usable
-            log(f"cannot cache capabilities: {exc}")
-    return data
+
 
 
 def resolve_device(pref: str, caps: dict) -> str:

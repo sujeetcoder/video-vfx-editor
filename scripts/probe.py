@@ -207,7 +207,7 @@ def main(argv=None) -> int:
 
     with stage("probe", args) as run:
         files = expand_inputs(args.inputs)
-        caps = capabilities(root, refresh=args.refresh)
+        caps = capabilities(root)
         run.device = device_plan(args.device, caps)["resolved"]
         results = []
         for f in files:

@@ -78,7 +78,6 @@ def add_common(parser: argparse.ArgumentParser, device: bool = True) -> None:
     parser.add_argument("--json", action="store_true", help="emit one JSON object on stdout")
     parser.add_argument("--dry-run", action="store_true", help="print commands, render nothing")
     parser.add_argument("--project", default=None, help="project root (default: auto-detect)")
-    parser.add_argument("--refresh", action="store_true", help="re-probe capability cache")
     if device:
         parser.add_argument(
             "--device",

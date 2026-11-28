@@ -28,15 +28,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from _caps import capabilities, fonts_dir  # noqa: E402
-from _contract import add_common, log, stage  # noqa: E402
+from _caps import (VFE, capabilities, fonts_dir, os_name,  # noqa: E402
+                   python_supported, venv_python)
+from _contract import SkillError, add_common, log, stage  # noqa: E402
 
 PIN_PYTHON = "3.12.16"
-PYTHON_RANGE = ((3, 11), (3, 14))  # >= 3.11 and < 3.14; packages ship wheels here
-
-VFE = Path.home() / ".vfe"
-VENV = VFE / "venv"
-UV_INSTALL_DIR = VFE / "python"
 FFMPEG_WIN_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 NODE_INDEX = "https://nodejs.org/dist/index.json"
 UV_RELEASE = "https://github.com/astral-sh/uv/releases/latest/download/"
@@ -54,62 +50,42 @@ PIP_PACKAGES = [
 ]
 
 
-def os_name() -> str:
-    if sys.platform.startswith("win"):
-        return "windows"
-    if sys.platform == "darwin":
-        return "macos"
-    return "linux"
-
-
-def venv_python() -> Path:
-    return VENV / ("Scripts/python.exe" if os_name() == "windows" else "bin/python")
-
-
-def python_supported(version=None) -> bool:
-    v = version or sys.version_info
-    return PYTHON_RANGE[0] <= (v[0], v[1]) < PYTHON_RANGE[1]
-
-
 # --------------------------------------------------------------------------
-# downloads (HTTPS only, size floor, SHA-256 where the vendor publishes one)
+# downloads
 # --------------------------------------------------------------------------
-def _download(url: str, dest: Path, timeout: int = 600, min_bytes: int = 4096) -> Path:
+def _download(url: str, dest: Path, timeout: int = 600) -> Path:
     if not url.startswith("https://"):
         raise RuntimeError(f"refusing non-HTTPS download: {url}")
     req = urllib.request.Request(url, headers={"User-Agent": "video-vfx-editor"})
     with urllib.request.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as fh:
         shutil.copyfileobj(resp, fh)
-    if dest.stat().st_size < min_bytes:
+    if dest.stat().st_size < 4096:
         raise RuntimeError(f"download too small: {url}")
     return dest
 
 
-def _fetch_text(url: str, timeout: int = 60) -> str:
+def _fetch_text(url: str) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": "video-vfx-editor"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, timeout=60) as resp:
         return resp.read().decode("utf-8", "replace")
 
 
 def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
     with open(path, "rb") as fh:
-        for block in iter(lambda: fh.read(1 << 20), b""):
-            h.update(block)
-    return h.hexdigest()
+        return hashlib.file_digest(fh, "sha256").hexdigest()
 
 
-def _exec(cmd, env=None, timeout: int = 1800) -> subprocess.CompletedProcess:
-    log(" ".join(str(c) for c in cmd))
-    return subprocess.run([str(c) for c in cmd], text=True, env=env, timeout=timeout)
+def _exec(cmd, *extra, timeout: int = 1800, env: dict | None = None) -> int:
+    argv = [*cmd, *extra]
+    log(" ".join(str(c) for c in argv))
+    return subprocess.run([str(c) for c in argv], text=True, timeout=timeout, env=env).returncode
 
 
 # --------------------------------------------------------------------------
 # uv + CPython
 # --------------------------------------------------------------------------
 def uv_url() -> str:
-    machine = platform.machine().lower()
-    arm = machine in ("arm64", "aarch64")
+    arm = platform.machine().lower() in ("arm64", "aarch64")
     if os_name() == "windows":
         return UV_RELEASE + ("uv-aarch64-pc-windows-msvc.zip" if arm else "uv-x86_64-pc-windows-msvc.zip")
     if os_name() == "macos":
@@ -117,24 +93,16 @@ def uv_url() -> str:
     return UV_RELEASE + ("uv-aarch64-unknown-linux-gnu.tar.gz" if arm else "uv-x86_64-unknown-linux-gnu.tar.gz")
 
 
-def uv_bin() -> Path | None:
-    local = VFE / "bin" / ("uv.exe" if os_name() == "windows" else "uv")
-    if local.is_file():
-        return local
-    found = shutil.which("uv")
-    return Path(found) if found else None
-
-
 def ensure_uv() -> Path:
-    found = uv_bin()
-    if found:
-        return found
-    (VFE / "bin").mkdir(parents=True, exist_ok=True)
+    dest = VFE / "bin" / ("uv.exe" if os_name() == "windows" else "uv")
+    if dest.is_file():
+        return dest
+    if shutil.which("uv"):
+        return Path(shutil.which("uv"))
+    url = uv_url()
     with tempfile.TemporaryDirectory() as td:
-        name = uv_url().rsplit("/", 1)[-1]
-        archive = Path(td) / name
-        _download(uv_url(), archive)
-        if name.endswith(".zip"):
+        archive = _download(url, Path(td) / url.rsplit("/", 1)[-1])
+        if archive.suffix == ".zip":
             with zipfile.ZipFile(archive) as zf:
                 zf.extractall(td)
         else:
@@ -143,7 +111,7 @@ def ensure_uv() -> Path:
             with tarfile.open(archive) as tf:
                 tf.extractall(td, filter="data")
         src = next(p for p in Path(td).rglob("uv*") if p.is_file() and p.name in ("uv", "uv.exe"))
-        dest = VFE / "bin" / src.name
+        dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest)
         dest.chmod(0o755)
     return dest
@@ -152,38 +120,33 @@ def ensure_uv() -> Path:
 def bootstrap_python() -> Path:
     """Install CPython 3.12.16 + a seeded venv under ~/.vfe (user-local)."""
     uv = ensure_uv()
-    env = dict(os.environ, UV_PYTHON_INSTALL_DIR=str(UV_INSTALL_DIR))
-    proc = _exec([uv, "python", "install", PIN_PYTHON, "--no-bin"], env=env)
-    if proc.returncode != 0:
-        raise RuntimeError(f"uv python install failed (exit {proc.returncode})")
-    if not venv_python().is_file():
-        proc = _exec([uv, "venv", "--python", PIN_PYTHON, "--seed", str(VENV)], env=env)
-        if proc.returncode != 0:
-            raise RuntimeError(f"uv venv failed (exit {proc.returncode})")
+    env = dict(os.environ, UV_PYTHON_INSTALL_DIR=str(VFE / "python"))
+    rc = _exec([uv, "python", "install", PIN_PYTHON, "--no-bin"], env=env)
+    if rc == 0 and not venv_python().is_file():
+        rc = _exec([uv, "venv", "--python", PIN_PYTHON, "--seed", str(VFE / "venv")], env=env)
+    if rc != 0:
+        raise RuntimeError(f"uv could not provision CPython {PIN_PYTHON} (exit {rc})")
     return venv_python()
 
 
 # --------------------------------------------------------------------------
 # portable tools
 # --------------------------------------------------------------------------
-def ensure_ffmpeg() -> None:
-    """Windows: signed-CDN FFmpeg essentials build, SHA-256 verified, into ~/.vfe/bin."""
+def ensure_ffmpeg() -> Path:
+    """Windows: portable FFmpeg essentials build, SHA-256 verified, into ~/.vfe/bin."""
     bin_dir = VFE / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
+    expected = _fetch_text(FFMPEG_WIN_URL + ".sha256").split()[0].lower()
     with tempfile.TemporaryDirectory() as td:
-        archive = Path(td) / "ffmpeg.zip"
-        sums = Path(td) / "ffmpeg.sha256"
-        _download(FFMPEG_WIN_URL, archive)
-        _download(FFMPEG_WIN_URL + ".sha256", sums, min_bytes=32)
-        expected = sums.read_text(encoding="utf-8", errors="replace").split()[0].lower()
+        archive = _download(FFMPEG_WIN_URL, Path(td) / "ffmpeg.zip")
         actual = _sha256(archive)
-        if expected != actual:
+        if actual != expected:
             raise RuntimeError(f"FFmpeg checksum mismatch: expected {expected}, got {actual}")
         with zipfile.ZipFile(archive) as zf:
             zf.extractall(td)
         for name in ("ffmpeg", "ffprobe", "ffplay"):
-            src = next(Path(td).rglob(name + ".exe"))
-            shutil.copy2(src, bin_dir / (name + ".exe"))
+            shutil.copy2(next(Path(td).rglob(name + ".exe")), bin_dir / (name + ".exe"))
+    return bin_dir
 
 
 def node_local() -> Path | None:
@@ -191,77 +154,66 @@ def node_local() -> Path | None:
     return exe if exe.is_file() else None
 
 
-def latest_node_lts(major: int = 22) -> str:
+def latest_node_lts() -> str:
     for row in json.loads(_fetch_text(NODE_INDEX)):
         version = str(row.get("version", "")).lstrip("v")
-        if version.startswith(f"{major}.") and row.get("lts"):
+        if version.startswith("22.") and row.get("lts"):
             return version
-    raise RuntimeError(f"no Node {major} LTS release found")
+    raise RuntimeError("no Node 22 LTS release found")
 
 
-def ensure_node() -> None:
+def ensure_node() -> Path:
     """Windows: portable Node 22 LTS zip into ~/.vfe/node (no MSI, no admin)."""
     if node_local():
-        return
+        return node_local()
     version = latest_node_lts()
     arch = "arm64" if platform.machine().lower() in ("arm64", "aarch64") else "x64"
-    url = f"https://nodejs.org/dist/v{version}/node-v{version}-win-{arch}.zip"
+    dest = VFE / "node"
     with tempfile.TemporaryDirectory() as td:
-        archive = Path(td) / "node.zip"
-        _download(url, archive)
+        archive = _download(f"https://nodejs.org/dist/v{version}/node-v{version}-win-{arch}.zip",
+                            Path(td) / "node.zip")
         with zipfile.ZipFile(archive) as zf:
             zf.extractall(td)
-        extracted = next(p for p in Path(td).glob("node-v*") if p.is_dir())
-        dest = VFE / "node"
-        if dest.exists():
-            shutil.rmtree(dest)
-        shutil.move(str(extracted), dest)
+        shutil.rmtree(dest, ignore_errors=True)
+        shutil.move(str(next(p for p in Path(td).glob("node-v*") if p.is_dir())), dest)
+    return dest
 
 
 def chrome_cached() -> bool:
-    cache = Path(os.environ.get("PUPPETEER_CACHE_DIR", Path.home() / ".cache" / "puppeteer"))
-    return cache.is_dir() and any(cache.rglob("chrome.exe")) if os_name() == "windows" \
-        else cache.is_dir() and any(cache.rglob("chrome"))
+    cache = Path(os.environ.get("PUPPETEER_CACHE_DIR") or Path.home() / ".cache" / "puppeteer")
+    exe = "chrome.exe" if os_name() == "windows" else "chrome"
+    return cache.is_dir() and next(cache.rglob(exe), None) is not None
 
 
 def _puppeteer_dir(node: str) -> Path | None:
-    base = Path(node).resolve().parent
-    try:  # C:\.nodejs may be a shim; ask node where it really lives
-        out = subprocess.run([str(node), "-p", "process.execPath"], capture_output=True,
-                             text=True, timeout=30).stdout.strip()
-        if out:
-            base = Path(out).parent
-    except (OSError, subprocess.SubprocessError):
-        pass
-    for cand in (base / "node_modules" / "puppeteer", base.parent / "node_modules" / "puppeteer"):
-        if cand.is_dir():
-            return cand
-    return None
+    # C:\.nodejs may be a shim; ask node where it really lives
+    out = subprocess.run([str(node), "-p", "process.execPath"], capture_output=True,
+                         text=True, timeout=30).stdout.strip()
+    pkg = Path(out or node).resolve().parent / "node_modules" / "puppeteer"
+    return pkg if pkg.is_dir() else None
 
 
-def install_puppeteer(caps: dict) -> None:
+def install_puppeteer(caps: dict) -> str:
     node = caps.get("node", {}).get("path") or (str(node_local()) if node_local() else None)
     if not node:
         raise RuntimeError("Node is missing; cannot install puppeteer")
     base = Path(node).resolve().parent
     npm_cli = next((p for p in (base / "node_modules/npm/bin/npm-cli.js",
                                 base / "lib/node_modules/npm/bin/npm-cli.js") if p.is_file()), None)
-    cmd = ([node, str(npm_cli)] if npm_cli else [shutil.which("npm") or "npm"])
-    # npm >= 12 skips postinstall scripts unless the package is allow-listed, and
-    # puppeteer's postinstall is what downloads Chrome.
-    proc = _exec([*cmd, "install", "-g", "puppeteer", "--no-audit", "--no-fund",
-                  "--allow-scripts=puppeteer"], timeout=1800)
-    if proc.returncode != 0:
-        raise RuntimeError(f"npm install -g puppeteer failed (exit {proc.returncode})")
-    if chrome_cached():
-        return
+    npm = [node, str(npm_cli)] if npm_cli else [shutil.which("npm") or "npm"]
+    # npm >= 12 skips postinstall scripts unless allow-listed, and puppeteer's
+    # postinstall is what downloads Chrome.
+    rc = _exec(npm, "install", "-g", "puppeteer", "--no-audit", "--no-fund", "--allow-scripts=puppeteer")
+    if rc != 0:
+        raise RuntimeError(f"npm install -g puppeteer failed (exit {rc})")
     pkg = _puppeteer_dir(node)
-    if pkg and (pkg / "install.mjs").is_file():
-        proc = _exec([node, str(pkg / "install.mjs")], timeout=1800)
-        if proc.returncode != 0:
-            raise RuntimeError(f"puppeteer Chrome download failed (exit {proc.returncode})")
+    if not chrome_cached() and pkg and (pkg / "install.mjs").is_file():
+        rc = _exec([node, str(pkg / "install.mjs")])
+        if rc != 0:
+            raise RuntimeError(f"puppeteer Chrome download failed (exit {rc})")
     if not chrome_cached():
         raise RuntimeError("puppeteer installed but Chrome is missing; run: npx puppeteer browsers install chrome")
+    return "npm -g puppeteer"
 
 
 # --------------------------------------------------------------------------
@@ -270,7 +222,7 @@ def install_puppeteer(caps: dict) -> None:
 def _pip_has(spec: str) -> bool:
     import importlib.util
 
-    name = spec.split("<")[0].split(">")[0].split("=")[0].split("!")[0].strip()
+    name = spec.split("<")[0].strip()
     mod = {"opencv-python-headless": "cv2", "pillow": "PIL", "faster-whisper": "faster_whisper",
            "yt-dlp": "yt_dlp"}.get(name, name.replace("-", "_"))
     if importlib.util.find_spec(mod) is None:
@@ -284,79 +236,62 @@ def _pip_has(spec: str) -> bool:
 
 def _puppeteer_installed(caps: dict) -> bool:
     node = caps.get("node", {}).get("path")
-    if not node:
-        return False
-    return _puppeteer_dir(node) is not None and chrome_cached()
+    return bool(node and _puppeteer_dir(node) and chrome_cached())
+
+
+def _local(aid: str, detail: str, handler) -> dict:
+    return {"id": aid, "detail": detail, "handler": handler}
+
+
+def _system(aid: str, detail: str, cmd: list, manual: str | None = None) -> dict:
+    return {"id": aid, "detail": detail, "cmd": cmd, "system": True, "manual": manual}
 
 
 def plan_actions(caps: dict) -> list:
     osname = os_name()
     actions = []
-
     if not python_supported():
-        actions.append({
-            "id": "python", "system": False, "cmd": ["uv", "python", "install", PIN_PYTHON],
-            "detail": f"Python {sys.version.split()[0]} has no wheels; provisions CPython "
-                      f"{PIN_PYTHON} + venv in ~/.vfe (user-local)",
-            "manual": None,
-        })
+        actions.append(_local("python", f"Python {sys.version.split()[0]} has no wheels; provisions "
+                                        f"CPython {PIN_PYTHON} + venv in ~/.vfe (user-local)", bootstrap_python))
 
     ff = caps["ffmpeg"]
     if not ff["present"] or not ff["has_libass"]:
         if osname == "windows":
-            actions.append({
-                "id": "ffmpeg-portable", "system": False, "cmd": [FFMPEG_WIN_URL],
-                "detail": "portable FFmpeg with libass/zscale into ~/.vfe/bin (SHA-256 verified)",
-                "manual": None,
-            })
+            actions.append(_local("ffmpeg-portable", "portable FFmpeg with libass/zscale into "
+                                                     "~/.vfe/bin (SHA-256 verified)", ensure_ffmpeg))
         else:
-            cmd = ["brew", "install", "ffmpeg"] if osname == "macos" else ["apt-get", "install", "-y", "ffmpeg"]
-            actions.append({
-                "id": "ffmpeg", "system": True, "cmd": cmd,
-                "detail": "FFmpeg with libass/zscale is required for captions and HDR-safe scaling",
-                "manual": "Linux: run 'sudo apt install ffmpeg' yourself (this tool never uses sudo)",
-            })
+            actions.append(_system("ffmpeg", "FFmpeg with libass/zscale is required for captions and HDR-safe scaling",
+                                   ["brew", "install", "ffmpeg"] if osname == "macos"
+                                   else ["apt-get", "install", "-y", "ffmpeg"],
+                                   "Linux: run 'sudo apt install ffmpeg' yourself (this tool never uses sudo)"))
 
     node = caps["node"]
     if not node["ok"]:
         if osname == "windows":
-            actions.append({
-                "id": "node-portable", "system": False, "cmd": ["node", "22 LTS"],
-                "detail": "portable Node 22 LTS into ~/.vfe/node (no MSI, no admin)",
-                "manual": None,
-            })
+            actions.append(_local("node-portable", "portable Node 22 LTS into ~/.vfe/node (no MSI, no admin)",
+                                  ensure_node))
         else:
-            cmd = ["brew", "install", "node@22"] if osname == "macos" else ["nvm", "install", "22"]
-            actions.append({
-                "id": "node", "system": True, "cmd": cmd,
-                "detail": "Node >= 20 (22 preferred) runs the HyperFrames motion bridge",
-                "manual": "no-admin fallback: install nvm/fnm, then 'nvm install 22'",
-            })
+            actions.append(_system("node", "Node >= 20 (22 preferred) runs the HyperFrames motion bridge",
+                                   ["brew", "install", "node@22"] if osname == "macos" else ["nvm", "install", "22"],
+                                   "no-admin fallback: install nvm/fnm, then 'nvm install 22'"))
 
     missing_pip = [p for p in PIP_PACKAGES if not _pip_has(p)]
     if missing_pip:
         venv = sys.prefix != sys.base_prefix
         actions.append({
-            "id": "python-packages", "system": False,
+            "id": "python-packages",
+            "detail": ("venv" if venv else "user site") + " pip packages: " + ", ".join(missing_pip),
             "cmd": [sys.executable, "-m", "pip", "install", "--disable-pip-version-check",
                     "--no-input", *([] if venv else ["--user"]), *missing_pip],
-            "detail": ("venv" if venv else "user site") + " pip packages: " + ", ".join(missing_pip),
-            "manual": None,
         })
 
     if (node["ok"] or osname == "windows") and not _puppeteer_installed(caps):
-        actions.append({
-            "id": "puppeteer", "system": False, "cmd": ["npm", "install", "-g", "puppeteer"],
-            "detail": "global puppeteer + bundled Chrome (motion graphics)",
-            "manual": None,
-        })
+        actions.append(_local("puppeteer", "global puppeteer + bundled Chrome (motion graphics)",
+                              lambda: install_puppeteer(caps)))
 
     if not caps["fonts"]["devanagari"]:
-        actions.append({
-            "id": "fonts", "system": False, "cmd": ["<download>"],
-            "detail": "OFL Devanagari + Latin fonts into " + str(fonts_dir(ROOT)),
-            "manual": None,
-        })
+        actions.append(_local("fonts", "OFL Devanagari + Latin fonts into " + str(fonts_dir(ROOT)),
+                              download_fonts))
     return actions
 
 
@@ -366,38 +301,22 @@ def plan_actions(caps: dict) -> list:
 def run_action(action: dict, yes: bool) -> dict:
     aid = action["id"]
     try:
-        if aid == "python":
-            py = bootstrap_python()
-            return {"id": aid, "status": "installed", "detail": str(py)}
-        if aid == "ffmpeg-portable":
-            ensure_ffmpeg()
-            return {"id": aid, "status": "installed", "detail": str(VFE / "bin")}
-        if aid == "node-portable":
-            ensure_node()
-            return {"id": aid, "status": "installed", "detail": str(VFE / "node")}
-        if aid == "puppeteer":
-            install_puppeteer(capabilities(ROOT, refresh=True))
-            return {"id": aid, "status": "installed", "detail": "npm -g puppeteer"}
-        if aid == "fonts":
-            return download_fonts()
-        if action["system"]:
-            if action["cmd"][0] in ("apt-get", "nvm"):
-                return {"id": aid, "status": "skipped", "detail": action["manual"] or "manual install required"}
-            if shutil.which(action["cmd"][0]) is None:
+        if "handler" in action:
+            return {"id": aid, "status": "installed", "detail": str(action["handler"]())}
+        cmd = action["cmd"]
+        if action.get("system"):
+            if cmd[0] in ("apt-get", "nvm") or shutil.which(cmd[0]) is None:
                 return {"id": aid, "status": "skipped",
-                        "detail": f"{action['cmd'][0]} not on PATH. {action['manual'] or ''}".strip()}
-            if not yes:
-                answer = input(f"Install {aid} with: {' '.join(action['cmd'])}\nProceed? [y/N] ").strip().lower()
-                if answer not in ("y", "yes"):
-                    return {"id": aid, "status": "declined", "detail": "user declined"}
-        proc = _exec(action["cmd"])
-        return {"id": aid, "status": "installed" if proc.returncode == 0 else "failed",
-                "detail": f"exit {proc.returncode}"}
+                        "detail": (action.get("manual") or f"{cmd[0]} is not on PATH").strip()}
+            if not yes and input(f"Install {aid} with: {' '.join(cmd)}\nProceed? [y/N] ").lower() not in ("y", "yes"):
+                return {"id": aid, "status": "declined", "detail": "user declined"}
+        rc = _exec(cmd)
+        return {"id": aid, "status": "installed" if rc == 0 else "failed", "detail": f"exit {rc}"}
     except Exception as exc:  # noqa: BLE001 - one failed item must not abort the rest
         return {"id": aid, "status": "failed", "detail": str(exc)}
 
 
-def download_fonts() -> dict:
+def download_fonts() -> str:
     target = fonts_dir(ROOT)
     target.mkdir(parents=True, exist_ok=True)
     ok, failed = [], []
@@ -410,21 +329,27 @@ def download_fonts() -> dict:
             ok.append(name)
         except Exception as exc:  # noqa: BLE001
             failed.append(f"{name}: {exc}")
-    return {"id": "fonts", "status": "installed" if ok else "failed",
-            "detail": f"downloaded {ok}" if ok else "; ".join(failed)}
+    if failed and not ok:
+        raise RuntimeError("; ".join(failed))
+    return f"downloaded {ok}" if ok else "already present"
 
 
-def predownload_model() -> dict:
+def predownload_model() -> str:
     model = os.environ.get("VFE_WHISPER_MODEL", "small")
-    code = (
-        "import os\n"
-        "from faster_whisper import WhisperModel\n"
-        f"WhisperModel({model!r}, device='cpu', compute_type='int8')\n"
-        "print('ok')\n"
-    )
-    proc = _exec([sys.executable, "-c", code])
-    return {"id": f"whisper-{model}", "status": "installed" if proc.returncode == 0 else "failed",
-            "detail": f"exit {proc.returncode}"}
+    code = ("from faster_whisper import WhisperModel\n"
+            f"WhisperModel({model!r}, device='cpu', compute_type='int8')\n"
+            "print('ok')\n")
+    rc = _exec([sys.executable, "-c", code])
+    if rc != 0:
+        raise RuntimeError(f"whisper model download failed (exit {rc})")
+    return f"{model} cached"
+
+
+def _result(aid: str, fn) -> dict:
+    try:
+        return {"id": aid, "status": "installed", "detail": fn()}
+    except Exception as exc:  # noqa: BLE001
+        return {"id": aid, "status": "failed", "detail": str(exc)}
 
 
 def main(argv=None) -> int:
@@ -438,57 +363,47 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     if not python_supported() and os.environ.get("VFE_BOOTSTRAPPED") != "1":
-        py = venv_python() if venv_python().is_file() else None
-        if py is None and args.install:
-            try:
-                py = bootstrap_python()
-            except Exception as exc:  # noqa: BLE001
-                print(f"python bootstrap failed: {exc}", file=sys.stderr)
-                return 5
-        if py is not None:
+        try:
+            py = venv_python() if venv_python().is_file() or not args.install else bootstrap_python()
+        except Exception as exc:  # noqa: BLE001
+            print(f"python bootstrap failed: {exc}", file=sys.stderr)
+            return 5
+        if py.is_file():
             log(f"re-running inside {py}")
-            env = dict(os.environ, VFE_BOOTSTRAPPED="1")
-            return subprocess.run([str(py), str(Path(__file__).resolve()), *sys.argv[1:]], env=env).returncode
+            return subprocess.run([str(py), str(Path(__file__).resolve()), *sys.argv[1:]],
+                                  env=dict(os.environ, VFE_BOOTSTRAPPED="1")).returncode
 
     with stage("ensure", args) as run:
-        read_only = not (args.install or args.fonts or args.models)
-        # Never plan an install from the cache: it may describe a runtime we just removed.
-        caps = capabilities(ROOT, refresh=args.install or args.refresh, cache_write=not read_only)
+        caps = capabilities()
         actions = plan_actions(caps)
         results = []
         if args.fonts:
-            results.append(download_fonts())
+            results.append(_result("fonts", download_fonts))
         if args.models:
-            results.append(predownload_model())
+            results.append(_result("whisper", predownload_model))
         if args.install:
-            for action in actions:
-                results.append(run_action(action, args.yes))
-            caps = capabilities(ROOT, refresh=True)
+            results.extend(run_action(a, args.yes) for a in actions)
+            caps = capabilities()
 
-        failed = [r for r in results if r["status"] == "failed"]
-        if failed:
-            from _contract import SkillError
-
-            run.fail(SkillError(
-                "; ".join(f"{r['id']}: {r['detail']}" for r in failed),
-                fix="re-run: python install/ensure.py --install --yes, or install that item manually",
-                retryable=True,
-            ))
         if not args.json:
             print(f"platform: {os_name()} | ffmpeg: {caps['ffmpeg']['path'] or 'missing'} | "
                   f"node: {caps['node']['version'] or 'missing'} | python: {caps['python']['version']}")
             for a in actions:
                 print(f"  planned: {a['id']:<16} {a['detail']}")
-                print(f"           cmd: {' '.join(a['cmd'])}")
             for r in results:
-                print(f"  {r['status']:<9} {r['id']}: {r.get('detail')}")
+                print(f"  {r['status']:<9} {r['id']}: {r['detail']}")
             if not actions:
                 print("everything required is already installed — nothing to do")
             if venv_python().is_file():
                 print(f"interpreter for scripts: {venv_python()}")
+
+        failed = [r for r in results if r["status"] == "failed"]
+        if failed:
+            run.fail(SkillError("; ".join(f"{r['id']}: {r['detail']}" for r in failed),
+                                fix="re-run: python install/ensure.py --install --yes, or install that item manually",
+                                retryable=True))
         remaining = plan_actions(caps)
-        run.add_check("preflight",
-                      "pass" if not remaining else ("fail" if failed else "warn"),
+        run.add_check("preflight", "fail" if failed else ("pass" if not remaining else "warn"),
                       f"{len(remaining)} missing", "0 missing")
         run.output = ", ".join(r["id"] for r in results) or "none"
         run.next_cmd = (f'"{venv_python()}" scripts/intake.py --ask' if venv_python().is_file()
