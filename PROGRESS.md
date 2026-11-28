@@ -1,6 +1,6 @@
 # PROGRESS
 
-Last update: 2026-11-28 (v0.1.6, real-media re-run on the pushed head + review)
+Last update: 2026-11-28 (v0.1.7, medium vs small on the same Hindi clip)
 
 ## Real-media run (this machine)
 
@@ -31,8 +31,27 @@ python install/build_paste.py --check              → current
 | total | 223 s for the full forged run |
 
 Hindi accuracy at `small` is the weak link: proper nouns come out wrong
-("मेरा नां लखम्लाल, अगर्याल जाती बैगा…"). `medium` (0.1.2, 129 words) is the
-accurate choice and needs a one-time model download.
+("मेरा नां लखम्लाल, अगर्याल जाती बैगा…").
+
+## medium vs small (same clip, same code, v0.1.7)
+
+`VFE_WHISPER_MODEL=medium python install/ensure.py --install --models` fetched
+1,528 MB in 97 s; then both models ran the full pipeline from scratch.
+
+| | small | medium |
+|---|---|---|
+| ASR stage | 50 s | 136 s |
+| full run | 3 m 31 s | 5 m 06 s |
+| words / segments | 122 / 11 | 118 / 14 |
+| mean word probability | 0.617 | 0.697 |
+| truth nouns recovered | 1/5 | 3/5 (बैगा, डिंडोरी, जाति) |
+| captions | 41 lines ≤17 chars | 43 lines ≤17 chars |
+| gates | 10/10 | 10/10 |
+
+medium recovers the year ("2007 से जुड़े हुए") where small emitted "2 சாಲ" with a
+stray Tamil glyph, and gets the name closer ("लक्हुनाल" vs "लखम्लाल"; truth is
+लखनलाल). Neither is clean — 2007 field recording, dialect speech. Use medium for
+Hindi when it is cached; small only for a first pass or a tight time budget.
 
 ## Bugs found by running (all fixed)
 

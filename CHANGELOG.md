@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.1.7 — 2026-11-28
+
+`faster-whisper medium` downloaded and the same Hindi clip run through the whole
+pipeline with it, then both models run again on identical code for a fair
+comparison.
+
+### medium vs small (same clip, `reel` preset, same code)
+
+| | small | medium |
+|---|---|---|
+| model on disk | 484 MB | **1,528 MB** (fetched once, 97 s) |
+| ASR stage | 50 s | 136 s |
+| full run | 3 m 31 s | 5 m 06 s |
+| words / segments | 122 / 11 | 118 / 14 |
+| mean word probability | 0.617 | **0.697** |
+| longest token | 9 chars | 14 chars |
+| truth nouns recovered | **1/5** | **3/5** (बैगा, डिंडोरी, जाति) |
+| caption lines | 41, max 17 chars | 43, max 17 chars |
+| gates | 10/10 pass | 10/10 pass |
+| loudness / true peak | −14.5 LUFS / −1.7 dBTP | −14.5 LUFS / −1.7 dBTP |
+
+**medium is the better transcript.** It hears the speaker's name as
+"लक्हुनाल" (small: "लखम्लाल"), gets डिंडोरी and जाति, and recovers the year —
+"2007 से जुड़े हुए" — where small emitted "2 சாಲ" with a stray Tamil glyph. Its
+word confidences are ~13 % higher and it produces no repetition loops (neither
+model does now). It costs 86 s more ASR and ~1.5 min more per run. Both still
+miss "लखनलाल" exactly: this is a 2007 field recording with dialect speech.
+
+Transcript similarity between the two is low (difflib 0.112, token Jaccard
+0.176), so the two models are not making the same mistakes — medium's extra
+confidence is doing real work rather than re-phrasing the same confusion.
+
+Captions from medium are transcribed, not written: `words.json` carries the
+SHA-1 of the WAV cut from the clip, and the burn shows **6,766–12,163 changed
+pixels** in the caption band at 8 of 9 sampled timestamps (the ninth is a gap
+between lines).
+
+### Fixed
+
+- **The orphan merge could break the length budget**: `chunk_words()` appended a
+  trailing single word to the previous line regardless of width, so medium's
+  longer words produced a **37-char caption line** and the run failed the
+  `captions <= 32` gate. It now merges only when the line still fits; a lone
+  short word stays alone instead. Tests cover both directions.
+- **The transcript cache ignored the model**: `asr.py` keyed `words.json` on
+  audio hash + language, so re-running a project with `--model medium` silently
+  reused the `small` transcript. The model is part of the key now. Verified
+  both ways: with a medium transcript cached, `--model small` re-transcribed
+  (42.7 s, 122 words, model recorded as `small`); repeating it hit the cache in
+  0 ms.
+
+### Verified
+
+- Both runs: **10/10 gates**, caption lines max **17 chars**, 95 % of the spoken
+  span captioned, 0 black runs and 0 freezes.
+- **65 tests pass**, pyflakes clean, doctor 17 PASS / 0 FAIL, `agent-paste.md`
+  current.
+
 ## 0.1.6 — 2026-11-28
 
 Real-media re-verification at 0.1.5, then the simplification review. Same

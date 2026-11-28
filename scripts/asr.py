@@ -178,7 +178,9 @@ def main(argv=None) -> int:
         digest = sha1_file(wav)[:12] if wav.is_file() else "dry"
         if out_path.is_file() and not args.force and not args.dry_run:
             cached = read_json(out_path, {})
-            if cached.get("audio_hash") == digest and cached.get("lang") == args.lang:
+            # model is part of the key: switching small -> medium must re-transcribe
+            if (cached.get("audio_hash") == digest and cached.get("lang") == args.lang
+                    and cached.get("model") == args.model):
                 log("using cached transcript")
                 run.ok(output=str(out_path), artifacts=[str(out_path)],
                        next_cmd="python scripts/caption.py <cut.mp4>")

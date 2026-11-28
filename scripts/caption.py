@@ -52,7 +52,9 @@ def chunk_words(words, max_chars: int = 32, min_words: int = 2, max_words: int =
         lines.append(cur)
     fixed = []
     for line in lines:
-        if len(line) == 1 and fixed:
+        # Re-join a lone trailing word only when the result still fits: an orphan
+        # is ugly, an over-budget caption line is a gate failure.
+        if len(line) == 1 and fixed and len(" ".join(w["w"] for w in fixed[-1] + line)) <= max_chars:
             fixed[-1].extend(line)
         else:
             fixed.append(line)

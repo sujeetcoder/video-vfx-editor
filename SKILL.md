@@ -4,7 +4,7 @@ description: Professional video editing AND clipping on the local machine with F
 license: MIT (code) + CC-BY-4.0 (prose)
 compatibility: Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI, Freebuff. Requires Python 3.11-3.13 (3.12.16 auto-provisioned user-locally), FFmpeg with libass, Node 22 (20 acceptable).
 metadata:
-  version: 0.1.6
+  version: 0.1.7
   runtime: python+ffmpeg+node
   models: 100k-context
   install: INSTALL.md
@@ -126,6 +126,11 @@ fallback ranking. This measures clip strength, **not virality** — say so.
 (there is no MPS path). Torch matte: cuda/mps, float32 CPU with
 `--mask-res 540 --every 2`. FFmpeg: `h264_nvenc` / `h264_videotoolbox` only when
 probed present, else `libx264`. earshot is CPU-only by design.
+
+ASR model: `small` is the default (484 MB). For Hindi, `medium` (1.5 GB, one-time
+`ensure.py --models`) measurably beats it on proper nouns — see PROGRESS.md; it
+costs ~2.7× the ASR time. The transcript cache is keyed by audio, language **and
+model**, so switching models re-transcribes instead of reusing the old words.
 
 ## 7. Gates — nothing is done until these pass
 
