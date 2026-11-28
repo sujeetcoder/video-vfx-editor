@@ -75,6 +75,14 @@ move is a warning, not a silent pass.
 Non-commercial and no-derivative licences are never used (`stock.BAD_LICENSES`),
 and the stage fails its `licences` check rather than sneaking one in.
 
+**Non-English audio needs an English topic hint.** Devanagari keywords match
+Wikimedia file titles loosely (a search for a spoken word can return an unrelated
+painting), so pass the subject explicitly:
+`plan.py ... --set broll_query="baiga tribe village india"` stores it as
+`plan.broll.query`, and every insert then searches that topic. Without a hint the
+stage still falls back to per-sentence keywords, whole query first then its two
+strongest words.
+
 ```bash
 python scripts/broll.py camera.mp4 --count 2 --json          # topic queries per sentence
 python scripts/broll.py camera.mp4 --query "village market" --json

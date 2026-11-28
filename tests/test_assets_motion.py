@@ -101,7 +101,7 @@ def test_pick_slots_avoids_the_hook_and_the_tail():
 
 def test_pick_slots_clamps_length_and_respects_count():
     slots = pick_slots(SEGMENTS, duration=22.0, count=9)
-    assert 2 <= len(slots) <= 4
+    assert len(slots) == 4                      # every eligible sentence, none invented
     assert all(1.5 <= s["dur"] <= 2.4 for s in slots)
 
 
@@ -118,3 +118,4 @@ def test_build_graph_opens_and_closes_every_window():
     assert "overlay=enable='between(t,9.000,10.500)'" in graph
     assert graph.count("format=rgba") == 2               # alpha is what makes the fade work
     assert "[v1][o2]overlay" in graph                    # second insert stacks on the first
+    assert graph.count("zoompan=z='1.0000+") == 2        # inserts reuse camera.py's move, not a copy

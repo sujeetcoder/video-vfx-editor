@@ -22,6 +22,7 @@ from _caps import capabilities, device_plan, encoder_args  # noqa: E402
 from _contract import add_common, log, stage  # noqa: E402
 from _paths import (ensure_edit, expand_inputs, ffmpeg_bin, ffprobe_json, project_root,  # noqa: E402
                     read_json, record_stage, run_cmd, work_dir, write_json)
+from camera import motion_filter  # noqa: E402 - inserts borrow the same move as the shot
 from stock import UA, keywords, score, search  # noqa: E402
 
 # `--query` / plan.broll.query overrides the per-sentence keywords for every insert.
@@ -59,17 +60,15 @@ def pick_slots(segments: list, duration: float, count: int) -> list:
 
 def build_graph(inserts: list, width: int, height: int, fps: int) -> tuple[str, str]:
     """filter_complex plus the output label; inputs are 1..n after the base video."""
-    cw, ch = int(width * 1.6) // 2 * 2, int(height * 1.6) // 2 * 2
     parts, prev = [], "0:v"
     for i, ins in enumerate(inserts, 1):
-        dur, frames = float(ins["dur"]), max(int(float(ins["dur"]) * fps), 2)
+        dur = float(ins["dur"])
         fade = min(FADE, dur / 4)
-        parts.append(
-            f"[{i}:v]scale={cw}:{ch}:force_original_aspect_ratio=increase,crop={cw}:{ch},setsar=1,"
-            f"fps={fps},zoompan=z='1+0.10*on/{frames}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':"
-            f"d=1:s={width}x{height},trim=duration={dur},setpts=PTS-STARTPTS,format=rgba,"
-            f"fade=t=in:st=0:d={fade}:alpha=1,fade=t=out:st={dur - fade:.3f}:d={fade}:alpha=1,"
-            f"setpts=PTS+{float(ins['start']):.3f}/TB[o{i}]")
+        move = motion_filter("zoom-in", max(int(dur * fps), 2), width, height, fps, amount=1.10)
+        parts.append(f"[{i}:v]{move},trim=duration={dur},setpts=PTS-STARTPTS,format=rgba,"
+                     f"fade=t=in:st=0:d={fade}:alpha=1,"
+                     f"fade=t=out:st={dur - fade:.3f}:d={fade}:alpha=1,"
+                     f"setpts=PTS+{float(ins['start']):.3f}/TB[o{i}]")
         parts.append(f"[{prev}][o{i}]overlay=enable='between(t,{float(ins['start']):.3f},"
                      f"{float(ins['start']) + dur:.3f})':eof_action=pass[v{i}]")
         prev = f"v{i}"
@@ -143,7 +142,7 @@ def main(argv=None) -> int:
         plan = read_json(plan_path, {}) if plan_path and Path(plan_path).is_file() else {}
         cfg = plan.get("broll") or {}
         count = args.count if args.count is not None else int(cfg.get("count") or 0)
-        words_path = state.get("artifacts", {}).get("asr") or (state.get("artifacts", {}).get("cut"))
+        words_path = (state.get("artifacts") or {}).get("asr")  # cut is a video, never a transcript
         work = work_dir(root, f"p-{path.stem}")
         out_path = Path(args.out) if args.out else work / "broll.mp4"
         info = ffprobe_json(path, dry_run=args.dry_run)

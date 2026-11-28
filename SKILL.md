@@ -4,7 +4,7 @@ description: Professional video editing AND clipping on the local machine with F
 license: MIT (code) + CC-BY-4.0 (prose)
 compatibility: Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI, Freebuff. Requires Python 3.11-3.13 (3.12.16 auto-provisioned user-locally), FFmpeg with libass, Node 22 (20 acceptable).
 metadata:
-  version: 0.2.0
+  version: 0.2.1
   runtime: python+ffmpeg+node
   models: 100k-context
   install: INSTALL.md
@@ -206,8 +206,10 @@ bed, local inserts. Nothing is dropped silently; unknown files are listed.
 **Motion** is on by default for short-form playbooks (`ken-burns`), still for
 long-form; `--set motion=none|zoom-in|pan-left` overrides. **B-roll** lands on
 sentence boundaries, local assets first, then Openverse/Wikimedia/NASA keyed off
-that sentence's keywords — never a non-commercial licence. Full rules, presets and
-the measured map of the reference reels: `references/assets-and-motion.md`.
+that sentence's keywords — never a non-commercial licence. Hindi topics need an
+English hint (`--set broll_query="baiga tribe village india"`); keyword search
+alone matches Devanagari poorly. Full rules, presets and the measured map of the
+reference reels: `references/assets-and-motion.md`.
 
 **Long form is first class.** `youtube` / `tutorial` / `podcast` render 16:9@30
 with `motion=none`, bottom captions, 3 spaced inserts (0 for `podcast`), no

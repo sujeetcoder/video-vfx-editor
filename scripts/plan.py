@@ -181,12 +181,9 @@ def build_plan(probe: dict, answers: dict, playbook: str, caps: dict, device: st
             "target_shot_len": pb["shot_len"],
             "fade_ms": 30,
         },
-        "motion": {
-            "preset": answers.get("motion") or MOTION_BY_PLAYBOOK.get(playbook, "none"),
-            "amount": float(answers.get("motion_amount") or 1.16),
-        },
+        "motion": {"preset": answers.get("motion") or MOTION_BY_PLAYBOOK.get(playbook, "none")},
         "broll": {"count": broll_count, "query": answers.get("broll_query") or None},
-        "assets": {"background": None, "broll": [], "overlays": [], "subtitles": None},
+        "assets": {"background": None, "broll": []},
         "effects": features,
         "layout": pb["layout"],
         "gates": {
@@ -202,13 +199,9 @@ def build_plan(probe: dict, answers: dict, playbook: str, caps: dict, device: st
         "clip": {
             "count": pb.get("clip_count", 5),
             "len": pb.get("clip_len", [15, 90]),
-        } if plan_job_is_clip(answers) else None,
+        } if answers.get("job") == "clip" else None,
     }
     return plan
-
-
-def plan_job_is_clip(answers: dict) -> bool:
-    return answers.get("job") == "clip"
 
 
 def load_assets(root) -> dict:
@@ -225,11 +218,8 @@ def apply_assets(plan: dict, assets: dict) -> dict:
         plan["assets"]["background"] = roles["background"]
         if plan["output"]["aspect"] != plan.get("source_aspect"):
             plan["layout"] = "backdrop"  # padded frame gets the supplied art, not black
-    for key in ("broll", "overlays"):
-        if roles.get(key):
-            plan["assets"][key] = list(roles[key])
-    if roles.get("subtitles"):
-        plan["assets"]["subtitles"] = roles["subtitles"]
+    if roles.get("broll"):
+        plan["assets"]["broll"] = list(roles["broll"])
     return plan
 
 
@@ -279,9 +269,7 @@ def main(argv=None) -> int:
         answers.setdefault("audio", "clean")
         answers.setdefault("effects", "auto")
         answers.setdefault("aspect", "9:16")
-        answers.setdefault("motion", None)
         answers.setdefault("broll", "auto")
-        answers.setdefault("broll_query", None)
 
         playbook = auto_playbook(probe, answers)
         plan = build_plan(probe, answers, playbook, caps, device)

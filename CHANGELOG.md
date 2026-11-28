@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.2.1 — 2026-11-28
+
+Cleanup of the 0.2.0 surface; no behaviour change, one real render re-verified.
+
+### Cut
+
+- `plan.motion.amount` and `apply_assets`'s `overlays`/`subtitles` plan fields:
+  nothing read them (camera presets and the export path do not consult them); the
+  roles stay in `work/assets/assets.json` where they are reported.
+- `stage_command(state, name, root)`'s unused `root` parameter and its seven call
+  sites.
+- `plan_job_is_clip()`, a one-line wrapper called once.
+- Two `answers.setdefault(key, None)` no-ops in `plan.py`.
+- `broll.py`'s transcript fallback to `artifacts["cut"]`, a video path fed to
+  `read_json` — unreachable while ASR runs, a crash if it ever were.
+
+### Simplified
+
+- `broll.build_graph()` rebuilt the canvas + `zoompan` chain by hand (its own
+  `1.6` constant, its own zoom expression). It now calls `camera.motion_filter()`,
+  so stills and footage share one move and one canvas factor.
+- Tightened two weak test assertions (`2 <= len(slots) <= 4` → `== 4`; the b-roll
+  graph must use the shared zoom expression) and documented the
+  `--set broll_query=...` / `plan.broll.query` topic hint that Hindi inserts need.
+
+### Verified
+
+16:9 tutorial render on the Hindi clip (`~/.vfe/proj-long2`, 4 m 11 s): **10/10
+gates** — 53.768 s, 1920×1080 @30, −16.1 LUFS, −1.7 dBTP, 0 black, 0 freezes,
+clean bottom captions (28 chars), 3 b-roll inserts, `motion=none`, `medium` ASR,
+and `forge.py status` printing `final video: …`. 88 tests pass, doctor 17 PASS.
+
 ## 0.2.0 — 2026-11-28
 
 A folder is now a shoot, not a single file: asset roles are classified, the

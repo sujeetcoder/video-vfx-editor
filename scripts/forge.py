@@ -44,7 +44,7 @@ def next_stage(state: dict) -> str | None:
     return None
 
 
-def stage_command(state: dict, name: str, root: Path) -> str:
+def stage_command(state: dict, name: str) -> str:
     art = state.get("artifacts", {})
     script = STAGE_SCRIPT.get(name)
     base = f"python scripts/{script}"
@@ -104,7 +104,7 @@ def brief(state: dict, root: Path) -> str:
         *( [f"## FINAL\n{final_output(state)}"] if final_output(state) else [] ),
         "## NOW",
         f"stage: {nxt}" if nxt else "all stages done — run check.py and report",
-        f"NEXT: {stage_command(state, nxt, root) if nxt else 'python scripts/check.py --json'}",
+        f"NEXT: {stage_command(state, nxt) if nxt else 'python scripts/check.py --json'}",
         "",
         "## FILES TO READ",
         *[f"- {k}: {v}" for k, v in sorted(art.items()) if k in (nxt or "", "plan", "intake", "probe")],
@@ -144,7 +144,7 @@ def do_run(state: dict, root: Path, args):
         if args.until and name != args.until and seq.index(name) > seq.index(args.until):
             break
         argv = [sys.executable, str(Path(__file__).parent / STAGE_SCRIPT[name])]
-        rest = stage_command(state, name, root)
+        rest = stage_command(state, name)
         parts = rest.split(" ", 2)
         after = parts[2] if len(parts) > 2 else ""
         argv += _split_args(after)
@@ -249,11 +249,11 @@ def main(argv=None) -> int:
             append_decision(root, f"init job={args.job} source={args.source} preset={args.preset or '-'}")
             run.ok(output=str(edit_dir(root) / "state.json"),
                    artifacts=[str(edit_dir(root) / "state.json")],
-                   next_cmd=stage_command(state, "ingest", root))
+                   next_cmd=stage_command(state, "ingest"))
 
         elif cmd == "next":
             nxt = next_stage(state)
-            cmd_line = stage_command(state, nxt, root) if nxt else None
+            cmd_line = stage_command(state, nxt) if nxt else None
             run.ok(output=nxt, next_cmd=cmd_line)
             if not args.json:
                 print(f"next stage: {nxt or 'done'}")
@@ -266,7 +266,7 @@ def main(argv=None) -> int:
             rendered = final_output(final)
             run.ok(output=str(edit_dir(root) / "state.json"),
                    artifacts=[rendered] if rendered else [],
-                   next_cmd=stage_command(final, nxt, root) if nxt else None)
+                   next_cmd=stage_command(final, nxt) if nxt else None)
             if failure:
                 exc_cls = KIND_MAP.get(failure.get("kind", ""), SkillError)
                 run.fail(exc_cls(f"{failure.get('stage')}: {failure.get('detail')}",
@@ -278,7 +278,7 @@ def main(argv=None) -> int:
             final = final_output(state)
             run.ok(output=f"{len(done)}/{len(stages_for(state))} stages",
                    artifacts=[str(edit_dir(root) / "state.json")] + ([final] if final else []),
-                   next_cmd=stage_command(state, next_stage(state), root) if next_stage(state) else None)
+                   next_cmd=stage_command(state, next_stage(state)) if next_stage(state) else None)
             if not args.json:
                 print(f"run {state.get('run_id')} job={state.get('job')} stage={state.get('stage')}")
                 print(f"final video: {final or '(not rendered yet)'}")
@@ -292,7 +292,7 @@ def main(argv=None) -> int:
             path.write_text(text, encoding="utf-8", newline="\n")
             run.device = state.get("device") or run.device
             run.ok(output=str(path), artifacts=[str(path)],
-                   next_cmd=stage_command(state, next_stage(state), root) if next_stage(state) else None)
+                   next_cmd=stage_command(state, next_stage(state)) if next_stage(state) else None)
             if not args.json:
                 print(text)
 
